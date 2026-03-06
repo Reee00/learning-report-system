@@ -25,8 +25,14 @@ class ReportMedia extends Model
     }
 
     // Helper: ambil URL publik
-    public function url(): string
-    {
-        return asset('storage/' . $this->path);
+public function url()
+{
+    // Kalau path sudah URL lengkap (Cloudinary), langsung return
+    if (str_starts_with($this->path, 'http')) {
+        return $this->path;
     }
+    
+    // Fallback untuk data lama yang masih pakai local storage
+    return asset('storage/' . $this->path);
+}
 }
