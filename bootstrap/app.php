@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         'role' => \App\Http\Middleware\RoleMiddleware::class,
         'auth' => \Illuminate\Auth\Middleware\Authenticate::class,
     ]);
+    $middleware->trustProxies(at: '*');    
 })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
