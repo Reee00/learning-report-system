@@ -10,7 +10,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('report_id')->constrained('reports')->cascadeOnDelete();
             $table->foreignId('student_id')->constrained('students')->cascadeOnDelete();
-            $table->enum('status', ['present', 'absent', 'sick', 'permission'])->default('present');
+            $table->string('status', 20)->default('present');
         });
     }
 

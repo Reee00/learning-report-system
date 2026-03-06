@@ -16,7 +16,7 @@ return new class extends Migration {
             $table->text('activity_summary');
             $table->text('notes')->nullable();
             $table->string('photo_path', 255)->nullable();
-            $table->enum('status', ['draft', 'submitted', 'approved', 'rejected'])->default('draft');
+            $table->string('status', 20)->default('draft');
             $table->text('admin_notes')->nullable();
             $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('approved_at')->nullable();

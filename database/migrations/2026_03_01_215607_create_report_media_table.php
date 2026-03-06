@@ -9,7 +9,7 @@ return new class extends Migration {
         Schema::create('report_media', function (Blueprint $table) {
             $table->id();
             $table->foreignId('report_id')->constrained('reports')->cascadeOnDelete();
-            $table->enum('type', ['photo', 'video']);
+            $table->string('type', 10);
             $table->string('path', 255);
             $table->string('original_name', 255)->nullable(); // nama file asli
             $table->timestamps();

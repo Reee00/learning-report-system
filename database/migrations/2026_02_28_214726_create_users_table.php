@@ -11,7 +11,7 @@ return new class extends Migration {
             $table->string('name', 100);
             $table->string('email', 150)->unique();
             $table->string('password');
-            $table->enum('role', ['admin', 'coach', 'school_pic']);
+            $table->string('role', 20); // admin, coach, school_pic
             $table->foreignId('school_id')->nullable()->constrained('schools')->nullOnDelete();
             $table->timestamps();
         });
