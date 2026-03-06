@@ -6,7 +6,6 @@ use App\Models\SchoolClass;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Maatwebsite\Excel\Facades\Excel;
 
 class StudentController extends Controller
 {
@@ -50,23 +49,55 @@ class StudentController extends Controller
     }
 
     // Upload Excel
-    public function import(Request $request, SchoolClass $class)
-    {
-        $this->authorizeAccess($class);
+    use Rap2hpoutre\FastExcel\FastExcel;
+public function import(Request $request, SchoolClass $class)
+{
+    $this->authorizeAccess($class);
 
-        $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv|max:2048',
-        ]);
+    $request->validate([
+        'file' => 'required|file|mimes:xlsx,xls,csv|max:51200',
+    ]);
 
-        try {
-            $import = new StudentsImport($class->id);
-            Excel::import($import, $request->file('file'));
+    try {
+        $file = $request->file('file');
+        $imported = 0;
+        $skipped  = 0;
 
-            return back()->with('success', 'Data siswa berhasil diimport dari Excel!');
-        } catch (\Exception $e) {
-            return back()->with('error', 'Gagal import: ' . $e->getMessage());
+        (new FastExcel)->import($file->getPathname(), function ($row) use ($class, &$imported, &$skipped) {
+            // Support kolom "nama_siswa" atau "name"
+            $name = trim($row['nama_siswa'] ?? $row['name'] ?? $row['Nama Siswa'] ?? '');
+
+            if (empty($name)) return null;
+
+            // Skip duplikat
+            $exists = Student::where('class_id', $class->id)
+                ->where('name', $name)
+                ->exists();
+
+            if ($exists) {
+                $skipped++;
+                return null;
+            }
+
+            Student::create([
+                'class_id' => $class->id,
+                'name'     => $name,
+            ]);
+
+            $imported++;
+        });
+
+        $message = "{$imported} siswa berhasil diimport.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} siswa dilewati karena sudah ada.";
         }
+
+        return back()->with('success', $message);
+
+    } catch (\Exception $e) {
+        return back()->with('error', 'Gagal import: ' . $e->getMessage());
     }
+}
 
     // Hapus siswa
     public function destroy(SchoolClass $class, Student $student)
