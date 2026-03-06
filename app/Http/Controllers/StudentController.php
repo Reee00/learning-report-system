@@ -1,7 +1,6 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Imports\StudentsImport;
 use App\Models\SchoolClass;
 use App\Models\Student;
 use Illuminate\Http\Request;
@@ -32,7 +31,6 @@ class StudentController extends Controller
             'name' => 'required|string|max:100',
         ]);
 
-        // Cek duplikat
         $exists = Student::where('class_id', $class->id)
             ->where('name', $request->name)
             ->exists();
@@ -50,55 +48,52 @@ class StudentController extends Controller
     }
 
     // Upload Excel
-    use Rap2hpoutre\FastExcel\FastExcel;
-public function import(Request $request, SchoolClass $class)
-{
-    $this->authorizeAccess($class);
+    public function import(Request $request, SchoolClass $class)
+    {
+        $this->authorizeAccess($class);
 
-    $request->validate([
-        'file' => 'required|file|mimes:xlsx,xls,csv|max:51200',
-    ]);
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:51200',
+        ]);
 
-    try {
-        $file = $request->file('file');
-        $imported = 0;
-        $skipped  = 0;
+        try {
+            $file = $request->file('file');
+            $imported = 0;
+            $skipped  = 0;
 
-        (new FastExcel)->import($file->getPathname(), function ($row) use ($class, &$imported, &$skipped) {
-            // Support kolom "nama_siswa" atau "name"
-            $name = trim($row['nama_siswa'] ?? $row['name'] ?? $row['Nama Siswa'] ?? '');
+            (new FastExcel)->import($file->getPathname(), function ($row) use ($class, &$imported, &$skipped) {
+                $name = trim($row['nama_siswa'] ?? $row['name'] ?? $row['Nama Siswa'] ?? '');
 
-            if (empty($name)) return null;
+                if (empty($name)) return null;
 
-            // Skip duplikat
-            $exists = Student::where('class_id', $class->id)
-                ->where('name', $name)
-                ->exists();
+                $exists = Student::where('class_id', $class->id)
+                    ->where('name', $name)
+                    ->exists();
 
-            if ($exists) {
-                $skipped++;
-                return null;
+                if ($exists) {
+                    $skipped++;
+                    return null;
+                }
+
+                Student::create([
+                    'class_id' => $class->id,
+                    'name'     => $name,
+                ]);
+
+                $imported++;
+            });
+
+            $message = "{$imported} siswa berhasil diimport.";
+            if ($skipped > 0) {
+                $message .= " {$skipped} siswa dilewati karena sudah ada.";
             }
 
-            Student::create([
-                'class_id' => $class->id,
-                'name'     => $name,
-            ]);
+            return back()->with('success', $message);
 
-            $imported++;
-        });
-
-        $message = "{$imported} siswa berhasil diimport.";
-        if ($skipped > 0) {
-            $message .= " {$skipped} siswa dilewati karena sudah ada.";
+        } catch (\Exception $e) {
+            return back()->with('error', 'Gagal import: ' . $e->getMessage());
         }
-
-        return back()->with('success', $message);
-
-    } catch (\Exception $e) {
-        return back()->with('error', 'Gagal import: ' . $e->getMessage());
     }
-}
 
     // Hapus siswa
     public function destroy(SchoolClass $class, Student $student)
@@ -120,10 +115,10 @@ public function import(Request $request, SchoolClass $class)
         ];
 
         $rows = [
-            ['nama_siswa'],       // header
-            ['Andi Pratama'],     // contoh baris 1
-            ['Bela Sari'],        // contoh baris 2
-            ['Citra Dewi'],       // contoh baris 3
+            ['nama_siswa'],
+            ['Andi Pratama'],
+            ['Bela Sari'],
+            ['Citra Dewi'],
         ];
 
         $callback = function () use ($rows) {
@@ -137,7 +132,7 @@ public function import(Request $request, SchoolClass $class)
         return response()->stream($callback, 200, $headers);
     }
 
-    // Cek hak akses: admin bisa semua, coach hanya kelasnya, pic hanya sekolahnya
+    // Cek hak akses
     private function authorizeAccess(SchoolClass $class): void
     {
         $user = Auth::user();
