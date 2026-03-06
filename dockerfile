@@ -1,12 +1,13 @@
 FROM php:8.3-cli
 
-# Install system dependencies
+# Install system dependencies + oniguruma untuk mbstring
 RUN apt-get update && apt-get install -y \
     git \
     curl \
     libpng-dev \
     libzip-dev \
     libxml2-dev \
+    libonig-dev \
     zip \
     unzip \
     && docker-php-ext-install \
@@ -24,13 +25,12 @@ RUN apt-get update && apt-get install -y \
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Set working directory
 WORKDIR /app
 
-# Copy composer files first (for caching)
+# Copy composer files dulu (cache layer)
 COPY composer.json composer.lock ./
 
-# Install PHP dependencies
+# Install dependencies
 RUN composer install \
     --optimize-autoloader \
     --no-dev \
@@ -38,13 +38,13 @@ RUN composer install \
     --no-scripts \
     --ignore-platform-reqs
 
-# Copy rest of application
+# Copy semua file aplikasi
 COPY . .
 
-# Run post-install scripts
+# Post install
 RUN composer run-script post-autoload-dump --no-interaction 2>/dev/null || true
 
-# Set permissions
+# Set permissions storage & cache
 RUN mkdir -p storage/logs \
              storage/framework/cache \
              storage/framework/sessions \
@@ -52,11 +52,11 @@ RUN mkdir -p storage/logs \
              bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-# Cache Laravel config
+# Cache Laravel
 RUN php artisan config:cache \
     && php artisan route:cache \
     && php artisan view:cache \
-    && php artisan storage:link
+    && php artisan storage:link || true
 
 EXPOSE 8080
 
