@@ -13,10 +13,6 @@ nixPkgs = [
     "composer"
 ]
 
-[phases.npm]
-dependsOn = []
-cmds = []
-
 [phases.build]
 cmds = [
     "composer install --optimize-autoloader --no-dev --no-interaction --ignore-platform-reqs",
