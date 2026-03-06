@@ -1,13 +1,9 @@
 FROM php:8.3-cli
 
 RUN apt-get update && apt-get install -y \
-    git curl libpng-dev libzip-dev libxml2-dev libonig-dev \
-    libpq-dev \        ← tambah ini untuk PostgreSQL
-    zip unzip \
+    git curl libpng-dev libzip-dev libxml2-dev libonig-dev zip unzip \
     && docker-php-ext-install \
         pdo_mysql \
-        pdo_pgsql \    ← tambah ini
-        pgsql \        ← tambah ini
         mbstring \
         zip \
         gd \
@@ -15,7 +11,7 @@ RUN apt-get update && apt-get install -y \
         fileinfo \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-        
+    
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
