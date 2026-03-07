@@ -13,7 +13,7 @@
                 <dt class="col-sm-4">Coach</dt>    <dd class="col-sm-8">{{ $report->coach->name }}</dd>
                 <dt class="col-sm-4">Tanggal</dt>  <dd class="col-sm-8">{{ $report->report_date->format('d M Y') }}</dd>
                 <dt class="col-sm-4">Materi</dt>   <dd class="col-sm-8">{{ $report->lesson_material }}</dd>
-                <dt class="col-sm-4">Kegiatan</dt> <dd class="col-sm-8">{{ $report->activity_summary }}</dd>
+                <dt class="col-sm-4">Kegiatan</dt> <dd class="col-sm-8"style="white-space: pre-wrap;>{{ $report->activity_summary }}</dd>
                 @if($report->notes)
                 <dt class="col-sm-4">Catatan</dt>  <dd class="col-sm-8">{{ $report->notes }}</dd>
                 @endif
