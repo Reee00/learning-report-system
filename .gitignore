@@ -5,6 +5,9 @@
 .env.production
 .phpactor.json
 .phpunit.result.cache
+contextproject.md
+DEPLOYMENT_GUIDE.md
+DEVELOPER_GUIDE.md
 /.fleet
 /.idea
 /.nova
