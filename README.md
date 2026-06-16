@@ -1,59 +1,65 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Learning Report System (LRS)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Deskripsi Proyek
+**Learning Report System** adalah aplikasi berbasis web yang dirancang untuk menjadi sistem manajemen dan pelaporan hasil pembelajaran. Aplikasi ini memfasilitasi pembagian peran (Admin, Pelatih/Coach, dan PIC Sekolah) untuk mencatat, mengelola, serta memonitor progres belajar peserta didik secara terpusat dan efisien.
 
-## About Laravel
+## Fitur Utama
+* **Manajemen Multi-Role:** Akses terpisah dengan antarmuka spesifik untuk Admin (kendali penuh), Coach (pelapor), dan PIC Sekolah (pemantau).
+* **Pelaporan Progres Belajar:** Pencatatan materi pembelajaran, ringkasan aktivitas, absensi kehadiran siswa, hingga unggahan bukti foto/video.
+* **Manajemen Master Data:** Pengelolaan data terpusat untuk entitas Sekolah, Kelas, Siswa, dan Pelatih.
+* **Import/Export Data:** Dukungan impor data daftar siswa secara massal menggunakan format Excel (`fast-excel`).
+* **Cloud Media Storage:** Terintegrasi penuh dengan ekosistem Cloudinary untuk penyimpanan berkas gambar dan video yang dinamis.
+* **Review Laporan:** Alur persetujuan (_Approve_ / _Reject_) laporan oleh tim Admin sebelum laporan diteruskan ke PIC Sekolah terkait.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Tech Stack
+* **Bahasa Pemrograman:** PHP (8.2 / 8.3), JavaScript
+* **Framework:** Laravel 12.0
+* **Database:** SQLite (default lokal), terstruktur siap menggunakan MySQL / PostgreSQL.
+* **Frontend Assets:** Vite + Laravel Blade
+* **Tools Tambahan:** Docker (Containerization)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Panduan Instalasi Lokal
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Prasyarat Sistem
+Pastikan perangkat lunak berikut telah terpasang:
+* PHP >= 8.2
+* Composer
+* Node.js & NPM
+* Git
 
-## Learning Laravel
+### Langkah-langkah Instalasi
+1. **Clone repositori**
+   ```bash
+   git clone https://github.com/Reee00/learning-report-system.git
+   cd learning-report-system
+   ```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+2. **Jalankan Setup Otomatis (Direkomendasikan)**
+   Aplikasi ini telah memuat skrip otomatisasi *setup* di dalam konfigurasi Composer. Anda hanya perlu menjalankan:
+   ```bash
+   composer setup
+   ```
+   *(Skrip ini secara otomatis akan mengeksekusi `composer install`, menyalin file `.env.example` ke `.env`, membuat *app key*, menjalankan migrasi database SQLite, serta mengunduh dependensi NPM beserta proses `build`-nya).*
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+3. **Konfigurasi Tambahan (Cloudinary)**
+   Agar fitur _upload_ gambar berjalan sempurna, buka file `.env` dan masukkan API keys dari akun Cloudinary Anda:
+   ```env
+   CLOUDINARY_CLOUD_NAME=your_cloud_name
+   CLOUDINARY_API_KEY=your_api_key
+   CLOUDINARY_API_SECRET=your_api_secret
+   ```
 
-## Laravel Sponsors
+4. **Jalankan Server Lokal**
+   Gunakan perintah _concurrent_ bawaan untuk menjalankan server web dan vite:
+   ```bash
+   composer dev
+   ```
+   Aplikasi dapat diakses melalui web browser di URL: `http://localhost:8000`
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Dokumentasi Lengkap & Arsitektur
+Informasi terperinci mengenai struktur arsitektur sistem, ERD database, proses otentikasi, serta panduan pengujian (_testing_) dan perilisan (_deployment_) telah kami dokumentasikan secara lengkap.
 
-### Premium Partners
+Anda dapat meninjau referensi _developer_ pada direktori **[`docs/`](/docs)** yang terdapat pada _root_ proyek ini.
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+*Dibangun dengan menggunakan framework [Laravel](https://laravel.com/).*
