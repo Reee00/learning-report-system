@@ -13,7 +13,7 @@ class UserController extends Controller
     // Daftar semua akun
     public function index(Request $request)
     {
-        $query = User::with('school')->latest();
+        $query = User::with(['school', 'schools'])->latest();
 
         // Filter berdasarkan role
         if ($request->filled('role')) {
@@ -41,24 +41,30 @@ class UserController extends Controller
             'name'      => 'required|string|max:100',
             'email'     => 'required|email|unique:users,email',
             'password'  => 'required|string|min:6|confirmed',
-            'role'      => 'required|in:admin,coach,school_pic',
+            'role'      => ['required', Rule::in(User::roleKeys())],
             'school_id' => 'nullable|exists:schools,id',
+            'school_ids' => 'nullable|array',
+            'school_ids.*' => 'integer|distinct|exists:schools,id',
         ]);
 
-        // school_id wajib diisi jika role = school_pic
-        if ($request->role === 'school_pic' && !$request->filled('school_id')) {
+        $schoolIds = $this->schoolIdsFromRequest($request);
+        $isSchoolScoped = in_array($request->role, User::schoolScopedRoles(), true);
+
+        if ($isSchoolScoped && $schoolIds === []) {
             return back()
-                ->withErrors(['school_id' => 'Sekolah wajib dipilih untuk role School PIC.'])
+                ->withErrors(['school_ids' => 'Minimal satu sekolah wajib dipilih untuk role ini.'])
                 ->withInput();
         }
 
-        User::create([
+        $user = User::create([
             'name'      => $request->name,
             'email'     => $request->email,
             'password'  => Hash::make($request->password),
             'role'      => $request->role,
-            'school_id' => $request->role === 'school_pic' ? $request->school_id : null,
+            'school_id' => $isSchoolScoped ? ($schoolIds[0] ?? null) : null,
         ]);
+
+        $user->schools()->sync($isSchoolScoped ? $schoolIds : []);
 
         return back()->with('success', 'Akun berhasil dibuat!');
     }
@@ -69,13 +75,18 @@ class UserController extends Controller
         $request->validate([
             'name'      => 'required|string|max:100',
             'email'     => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-            'role'      => 'required|in:admin,coach,school_pic',
+            'role'      => ['required', Rule::in(User::roleKeys())],
             'school_id' => 'nullable|exists:schools,id',
+            'school_ids' => 'nullable|array',
+            'school_ids.*' => 'integer|distinct|exists:schools,id',
         ]);
 
-        if ($request->role === 'school_pic' && !$request->filled('school_id')) {
+        $schoolIds = $this->schoolIdsFromRequest($request);
+        $isSchoolScoped = in_array($request->role, User::schoolScopedRoles(), true);
+
+        if ($isSchoolScoped && $schoolIds === []) {
             return back()
-                ->withErrors(['school_id' => 'Sekolah wajib dipilih untuk role School PIC.'])
+                ->withErrors(['school_ids' => 'Minimal satu sekolah wajib dipilih untuk role ini.'])
                 ->withInput();
         }
 
@@ -83,8 +94,10 @@ class UserController extends Controller
             'name'      => $request->name,
             'email'     => $request->email,
             'role'      => $request->role,
-            'school_id' => $request->role === 'school_pic' ? $request->school_id : null,
+            'school_id' => $isSchoolScoped ? ($schoolIds[0] ?? null) : null,
         ]);
+
+        $user->schools()->sync($isSchoolScoped ? $schoolIds : []);
 
         return back()->with('success', 'Akun berhasil diperbarui!');
     }
@@ -106,12 +119,36 @@ class UserController extends Controller
     // Hapus akun
     public function destroy(User $user)
     {
-        // Cegah admin menghapus akunnya sendiri
+        // Cegah user yang sedang login menghapus akunnya sendiri
         if ($user->id === auth()->id()) {
             return back()->with('error', 'Tidak bisa menghapus akun sendiri!');
         }
 
+        // reports.coach_id memakai FK RESTRICT: laporan historis tidak boleh
+        // hilang, jadi penolakan dilakukan dengan pesan, bukan error database.
+        if ($user->reports()->exists()) {
+            return back()->with(
+                'error',
+                "Akun {$user->name} tidak bisa dihapus karena masih memiliki laporan. Nonaktifkan penugasan kelasnya sebagai gantinya."
+            );
+        }
+
         $user->delete();
         return back()->with('success', 'Akun berhasil dihapus.');
+    }
+
+    private function schoolIdsFromRequest(Request $request): array
+    {
+        $schoolIds = $request->input('school_ids', []);
+
+        if (!is_array($schoolIds)) {
+            $schoolIds = [];
+        }
+
+        if ($schoolIds === [] && $request->filled('school_id')) {
+            $schoolIds = [$request->input('school_id')];
+        }
+
+        return array_values(array_unique(array_map('intval', $schoolIds)));
     }
 }

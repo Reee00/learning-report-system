@@ -2,13 +2,37 @@
 @section('title', 'Master Sekolah')
 
 @section('content')
+@php
+    $currentUser = auth()->user();
+    $authorization = app(\App\Services\AuthorizationService::class);
+    $canCreateSchool = $currentUser && $authorization->allows($currentUser, 'schools.create');
+    $canUpdateSchool = $currentUser && $authorization->allows($currentUser, 'schools.update');
+    $canDeleteSchool = $currentUser && $authorization->allows($currentUser, 'schools.delete');
+    $hasSchoolActions = $canUpdateSchool || $canDeleteSchool;
+@endphp
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4>🏫 Master Data Sekolah</h4>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSchoolModal">
-            + Tambah Sekolah
-        </button>
+        @if($canCreateSchool)
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSchoolModal">
+                + Tambah Sekolah
+            </button>
+        @endif
     </div>
+
+    @if ($errors->any())
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    @if (session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
 
     <div class="card">
         <div class="table-responsive">
@@ -19,7 +43,9 @@
                         <th>Nama Sekolah</th>
                         <th>PIC</th>
                         <th>Jumlah Kelas</th>
-                        <th>Aksi</th>
+                        @if($hasSchoolActions)
+                            <th>Aksi</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -32,22 +58,29 @@
                         </td>
                         <td>{{ $school->pic_name ?? '-' }}</td>
                         <td>{{ $school->classes_count }}</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-secondary"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#editSchoolModal{{ $school->id }}">
-                                Edit
-                            </button>
-                            <form method="POST" action="{{ route('admin.schools.destroy', $school) }}"
-                                  class="d-inline"
-                                  onsubmit="return confirm('Hapus sekolah ini?')">
-                                @csrf
-                                @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger">Hapus</button>
-                            </form>
-                        </td>
+                        @if($hasSchoolActions)
+                            <td>
+                                @if($canUpdateSchool)
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editSchoolModal{{ $school->id }}">
+                                        Edit
+                                    </button>
+                                @endif
+                                @if($canDeleteSchool)
+                                    <form method="POST" action="{{ route('admin.schools.destroy', $school) }}"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Hapus sekolah ini?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="btn btn-sm btn-outline-danger">Hapus</button>
+                                    </form>
+                                @endif
+                            </td>
+                        @endif
                     </tr>
 
+                    @if($canUpdateSchool)
                     {{-- Modal Edit --}}
                     <div class="modal fade" id="editSchoolModal{{ $school->id }}" tabindex="-1">
                         <div class="modal-dialog">
@@ -81,9 +114,10 @@
                             </div>
                         </div>
                     </div>
+                    @endif
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">Belum ada sekolah.</td>
+                        <td colspan="{{ $hasSchoolActions ? 5 : 4 }}" class="text-center text-muted py-4">Belum ada sekolah.</td>
                     </tr>
                 @endforelse
                 </tbody>

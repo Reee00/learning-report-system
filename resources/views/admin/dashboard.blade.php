@@ -1,9 +1,9 @@
 @extends('layouts.app')
-@section('title', 'Admin Dashboard')
+@section('title', auth()->user()->role === 'superadmin' ? 'SuperAdmin Dashboard' : 'Relation Dashboard')
 
 @section('content')
 <div class="container py-4">
-    <h4 class="mb-4">📊 Admin Dashboard</h4>
+    <h4 class="mb-4">📊 {{ auth()->user()->role === 'superadmin' ? 'SuperAdmin' : 'Relation' }} Dashboard</h4>
 
     {{-- Statistik --}}
     <div class="row g-3 mb-4">

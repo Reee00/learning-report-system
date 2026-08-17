@@ -2,7 +2,28 @@
 @section('title', 'Kelola Assignment Coach')
 
 @section('content')
+@php
+    $currentUser = auth()->user();
+    $authorization = app(\App\Services\AuthorizationService::class);
+    $canAssignCoach = $currentUser && $authorization->allows($currentUser, 'coaches.assign');
+    $canReassignCoach = $currentUser && $authorization->allows($currentUser, 'coaches.reassign');
+@endphp
 <div class="container py-4">
+    @if (session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
+    @if ($errors->any())
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
     <div class="mb-4">
         <a href="{{ route('admin.coaches.index') }}" class="btn btn-outline-secondary btn-sm mb-2">
             ← Kembali ke Daftar Coach
@@ -31,7 +52,9 @@
                                 <tr>
                                     <th>Sekolah</th>
                                     <th>Kelas</th>
-                                    <th></th>
+                                    @if($canReassignCoach)
+                                        <th>Aksi</th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody>
@@ -39,17 +62,19 @@
                                 <tr>
                                     <td>{{ $cc->schoolClass->school->name }}</td>
                                     <td>{{ $cc->schoolClass->name }}</td>
-                                    <td>
-                                        <form method="POST"
-                                              action="{{ route('admin.coaches.unassign', [$coach, $cc]) }}"
-                                              onsubmit="return confirm('Hapus assignment ini?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button class="btn btn-sm btn-outline-danger">
-                                                Hapus
-                                            </button>
-                                        </form>
-                                    </td>
+                                    @if($canReassignCoach)
+                                        <td>
+                                            <form method="POST"
+                                                  action="{{ route('admin.coaches.unassign', [$coach, $cc]) }}"
+                                                  onsubmit="return confirm('Hapus assignment ini?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="btn btn-sm btn-outline-danger">
+                                                    Hapus
+                                                </button>
+                                            </form>
+                                        </td>
+                                    @endif
                                 </tr>
                             @endforeach
                             </tbody>
@@ -68,7 +93,7 @@
                         <p class="text-muted fst-italic">
                             Semua kelas sudah di-assign ke coach ini.
                         </p>
-                    @else
+                    @elseif($canAssignCoach)
                         <form method="POST" action="{{ route('admin.coaches.assign', $coach) }}">
                             @csrf
                             <div class="mb-3">
@@ -93,6 +118,8 @@
                                 Assign Kelas
                             </button>
                         </form>
+                    @else
+                        <p class="text-muted mb-0">Anda tidak memiliki permission untuk melakukan assignment.</p>
                     @endif
                 </div>
             </div>

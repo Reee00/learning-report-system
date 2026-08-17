@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SchoolClass;
 use App\Models\Student;
+use App\Services\AuthorizationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Rap2hpoutre\FastExcel\FastExcel;
@@ -12,7 +13,7 @@ class StudentController extends Controller
     // Halaman detail kelas + daftar siswa
     public function show(SchoolClass $class)
     {
-        $this->authorizeAccess($class);
+        $this->authorizeAccess($class, 'students.view');
 
         $class->load('school');
         $students = Student::where('class_id', $class->id)
@@ -25,14 +26,14 @@ class StudentController extends Controller
     // Tambah siswa manual
     public function store(Request $request, SchoolClass $class)
     {
-        $this->authorizeAccess($class);
+        $this->authorizeAccess($class, 'students.create');
 
-        $request->validate([
-            'name' => 'required|string|max:100',
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
         ]);
 
         $exists = Student::where('class_id', $class->id)
-            ->where('name', $request->name)
+            ->where('name', $validated['name'])
             ->exists();
 
         if ($exists) {
@@ -41,7 +42,7 @@ class StudentController extends Controller
 
         Student::create([
             'class_id' => $class->id,
-            'name'     => $request->name,
+            'name'     => $validated['name'],
         ]);
 
         return back()->with('success', 'Siswa berhasil ditambahkan!');
@@ -50,7 +51,7 @@ class StudentController extends Controller
     // Upload Excel
     public function import(Request $request, SchoolClass $class)
     {
-        $this->authorizeAccess($class);
+        $this->authorizeAccess($class, 'students.create');
 
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:51200',
@@ -98,7 +99,7 @@ class StudentController extends Controller
     // Hapus siswa
     public function destroy(SchoolClass $class, Student $student)
     {
-        $this->authorizeAccess($class);
+        $this->authorizeAccess($class, 'students.delete');
 
         abort_if($student->class_id !== $class->id, 403);
 
@@ -133,25 +134,27 @@ class StudentController extends Controller
     }
 
     // Cek hak akses
-    private function authorizeAccess(SchoolClass $class): void
+    private function authorizeAccess(SchoolClass $class, string $permission): void
     {
         $user = Auth::user();
+        $authorization = app(AuthorizationService::class);
 
-        if ($user->role === 'admin') return;
+        abort_unless(
+            $authorization->allows($user, $permission),
+            403,
+            'Permission tidak mencukupi.'
+        );
 
-        if ($user->role === 'coach') {
-            $assigned = \App\Models\CoachClass::where('coach_id', $user->id)
-                ->where('class_id', $class->id)
-                ->exists();
-            abort_if(!$assigned, 403, 'Kamu tidak memiliki akses ke kelas ini.');
-            return;
-        }
+        abort_unless(
+            $authorization->canAccessClass($user, $class),
+            403,
+            'Kamu tidak memiliki akses ke kelas ini.'
+        );
 
-        if ($user->role === 'school_pic') {
-            abort_if($class->school_id !== $user->school_id, 403, 'Kelas ini bukan dari sekolahmu.');
-            return;
-        }
-
-        abort(403);
+        abort_unless(
+            $class->school()->exists(),
+            422,
+            'Kelas belum terhubung ke sekolah.'
+        );
     }
 }

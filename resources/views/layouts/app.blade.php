@@ -19,8 +19,12 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
                 @auth
+                    @php
+                        $currentUser = auth()->user();
+                        $authorization = app(\App\Services\AuthorizationService::class);
+                    @endphp
                     {{-- Menu untuk Coach --}}
-                    @if(auth()->user()->role === 'coach')
+                    @if($currentUser->role === 'coach')
                         <li class="nav-item">
                             <a class="nav-link" href="{{ route('coach.reports.index') }}">Laporan Saya</a>
                         </li>
@@ -28,39 +32,102 @@
                             <a class="nav-link" href="{{ route('coach.reports.create') }}">Submit Laporan</a>
                         </li>
 
-                    {{-- Menu untuk Admin --}}
-                    @elseif(auth()->user()->role === 'admin')
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('admin.dashboard') }}">Dashboard</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('admin.reports.index') }}">Laporan</a>
-                        </li>
+                    {{-- Menu untuk Relation / SuperAdmin --}}
+                    @elseif(in_array($currentUser->role, ['relation', 'superadmin'], true))
+                        @if($currentUser->isSuperAdmin())
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('admin.dashboard') }}">Dashboard</a>
+                            </li>
+                        @endif
+                        @if($authorization->allows($currentUser, 'reports.view_all'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('admin.reports.index') }}">Coach Report</a>
+                            </li>
+                        @endif
+                        @if($authorization->allows($currentUser, 'attendance.view'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('attendance.index') }}">Attendance</a>
+                            </li>
+                        @endif
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                                 Master Data
                             </a>
                             <ul class="dropdown-menu">
-                                <li>
-                                    <a class="dropdown-item" href="{{ route('admin.schools.index') }}">Sekolah</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" href="{{ route('admin.classes.index') }}">Kelas</a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" href="{{ route('admin.coaches.index') }}">Coach</a>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="{{ route('admin.users.index') }}">Manajemen Akun</a></li>
+                                @if($authorization->allows($currentUser, 'schools.view'))
+                                    <li><a class="dropdown-item" href="{{ route('admin.schools.index') }}">Sekolah</a></li>
+                                @endif
+                                @if($authorization->allows($currentUser, 'program_classes.view'))
+                                    <li><a class="dropdown-item" href="{{ route('admin.classes.index') }}">Kelas</a></li>
+                                @endif
+                                @if($authorization->allows($currentUser, 'programs.view'))
+                                    <li><a class="dropdown-item" href="{{ route('admin.programs.index') }}">Program</a></li>
+                                @endif
+                                @if($authorization->allows($currentUser, 'coaches.view'))
+                                    <li><a class="dropdown-item" href="{{ route('admin.coaches.index') }}">Coach</a></li>
+                                @endif
+                                @if($authorization->allows($currentUser, 'users.manage'))
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="{{ route('admin.users.index') }}">Manajemen Akun</a></li>
+                                @endif
 
                             </ul>
                         </li>
 
+                    {{-- Menu untuk SPV Coach --}}
+                    @elseif($currentUser->role === 'spv_coach')
+                        @if($authorization->allows($currentUser, 'coaches.view'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('admin.coaches.index') }}">Coach</a>
+                            </li>
+                        @endif
+                        @if($authorization->allows($currentUser, 'reports.view_all'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('admin.reports.index') }}">Coach Report</a>
+                            </li>
+                        @endif
+                        @if($authorization->allows($currentUser, 'attendance.view'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('attendance.index') }}">Attendance</a>
+                            </li>
+                        @endif
+
                     {{-- Menu untuk School PIC --}}
-                    @elseif(auth()->user()->role === 'school_pic')
+                    @elseif($currentUser->role === 'school_pic')
                         <li class="nav-item">
                             <a class="nav-link" href="{{ route('pic.dashboard') }}">Dashboard</a>
                         </li>
+                        @if($authorization->allows($currentUser, 'reports.view_all'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('admin.reports.index') }}">Coach Report</a>
+                            </li>
+                        @endif
+                        @if($authorization->allows($currentUser, 'attendance.view'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('attendance.index') }}">Attendance</a>
+                            </li>
+                        @endif
+
+                    {{-- Menu untuk Teacher School --}}
+                    @elseif($currentUser->role === 'teacher_school')
+                        @if($authorization->allows($currentUser, 'reports.view_all'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('admin.reports.index') }}">Coach Report</a>
+                            </li>
+                        @endif
+                        @if($authorization->allows($currentUser, 'attendance.view'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('attendance.index') }}">Attendance</a>
+                            </li>
+                        @endif
+
+                    {{-- Menu untuk Finance --}}
+                    @elseif($currentUser->role === 'finance')
+                        @if($authorization->allows($currentUser, 'attendance.view'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('attendance.index') }}">Attendance</a>
+                            </li>
+                        @endif
                     @endif
                 @endauth
             </ul>
@@ -71,7 +138,9 @@
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                         {{ auth()->user()->name }}
-                        <span class="badge bg-light text-dark ms-1">{{ ucfirst(auth()->user()->role) }}</span>
+                        {{-- Label role dibaca dari User::roleLabels() agar tidak pernah
+                             beda dengan Manajemen Akun (mis. "Spv coach" vs "SPV Coach"). --}}
+                        <span class="badge bg-light text-dark ms-1">{{ auth()->user()->roleLabel() }}</span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li>

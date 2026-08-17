@@ -1,492 +1,493 @@
 # 🗄️ Dokumentasi Database
 
-## 1. Diagram Entity Relationship (ERD)
-
-```
-          ┌──────────────────┐
-          │     schools      │
-          ├──────────────────┤
-          │ id: bigint (PK)  │
-          │ name: string     │
-          │ address: text    │
-          │ pic_name: string │
-          │ created_at       │
-          │ updated_at       │
-          └────────┬─────────┘
-                   │ 1:N
-          ┌────────▼──────────┐
-          │   classes          │
-          ├────────────────────┤
-          │ id: bigint (PK)    │
-          │ school_id: bigint  │◄──────┐
-          │ name: string       │       │ school
-          │ created_at         │   CASCADE DELETE
-          │ updated_at         │       │
-          └────────┬───────────┘       │
-                   │ 1:N       ┌───────┴──────────┐
-          ┌────────▼──────────┐ 1:N
-          │   students         │
-          ├────────────────────┤
-          │ id: bigint (PK)    │
-          │ class_id: bigint   │◄──────┐
-          │ name: string       │       │ class
-          │ created_at         │   CASCADE DELETE
-          └────────────────────┘       │
-                                       │
-          ┌──────────────────────────┐ │
-          │     coach_classes        │ │
-          ├──────────────────────────┤ │
-          │ id: bigint (PK)          │ │
-          │ coach_id: bigint (FK)    │─┤──► users.id
-          │ class_id: bigint (FK)    │─┘──► classes.id
-          │ UNIQUE(coach_id, class_id)
-          │ CASCADE DELETE both
-          └──────────────────────────┘
-
-          ┌──────────────────────┐
-          │      users           │
-          ├──────────────────────┤
-          │ id: bigint (PK)      │
-          │ name: string         │
-          │ email: string (UNIQUE)
-          │ password: string     │
-          │ role: enum           │ admin, coach, school_pic
-          │ school_id: bigint    │ nullable, for school_pic
-          │ created_at           │
-          │ updated_at           │
-          └────────┬─────────────┘
-                   │ 1:N (admin/coach)
-                   │
-          ┌────────▼───────────────┐
-          │     reports            │
-          ├────────────────────────┤
-          │ id: bigint (PK)        │
-          │ coach_id: bigint (FK)  │──► users (coach)
-          │ school_id: bigint (FK) │──► schools
-          │ class_id: bigint (FK)  │──► classes
-          │ report_date: date      │
-          │ lesson_material: text  │
-          │ activity_summary: text │
-          │ notes: text            │
-          │ photo_path: string     │ deprecated
-          │ status: enum           │ draft, submitted, approved, rejected
-          │ admin_notes: text      │
-          │ approved_by: bigint    │──► users (admin)
-          │ approved_at: timestamp │
-          │ created_at             │
-          │ updated_at             │
-          └────────┬───────────────┘
-                   │ 1:N CASCADE DELETE
-        ┌──────────┴────────────┐
-        │                       │
-   ┌────▼──────────────────┐  ┌────▼──────────────────┐
-   │ report_attendances    │  │   report_media        │
-   ├──────────────────────┤  ├──────────────────────┤
-   │ id: bigint (PK)      │  │ id: bigint (PK)      │
-   │ report_id: bigint    │  │ report_id: bigint    │
-   │ student_id: bigint   │  │ type: enum           │ photo, video
-   │ status: enum         │  │ path: string (URL)   │ Cloudinary
-   │ CASCADE DELETE       │  │ original_name: string
-   │                      │  │ created_at           │
-   │ ◄── students         │  │ updated_at           │
-   │ ◄── reports          │  │ CASCADE DELETE       │
-   └──────────────────────┘  │ ◄── reports          │
-                             └──────────────────────┘
-```
+**Terakhir diperbarui:** 17 Agustus 2026
+**Sumber:** `PRAGMA table_info` / `PRAGMA foreign_key_list` / `PRAGMA index_list` pada
+`database/database.sqlite` + 13 file migration
 
 ---
 
-## 2. Deskripsi Tabel dan Kolom
+## 1. Ringkasan
 
-### Tabel: `schools`
-**Tujuan**: Menyimpan data sekolah
+| Hal | Nilai |
+|---|---|
+| DBMS lokal | SQLite |
+| Jumlah migration | **13** (`php artisan migrate:status` → 13 Ran, 0 Pending) |
+| Jumlah tabel aplikasi | **13** (termasuk `migrations` & `sessions`) |
+| Batch | batch 1 = 9 migration, batch 2 = 4 migration |
+| SoftDeletes | tidak dipakai di tabel mana pun |
+| Database test | SQLite `:memory:` + `RefreshDatabase` — test tidak pernah menyentuh file dev |
 
-| Kolom | Tipe | Null | Deskripsi |
-|-------|------|------|-----------|
-| id | BIGINT | NO | Primary key, auto increment |
-| name | VARCHAR(150) | NO | Nama sekolah |
-| address | TEXT | YES | Alamat sekolah |
-| pic_name | VARCHAR(100) | YES | Nama PIC (Penanggung Jawab) sekolah |
-| created_at | TIMESTAMP | NO | Waktu penciptaan |
-| updated_at | TIMESTAMP | NO | Waktu update terakhir |
+Daftar migration:
 
-**Constraints**:
-- PRIMARY KEY (id)
-- Tidak ada unique constraints khusus
+```text
+batch 1 (Februari–Maret 2026)
+  0001_01_01_000000_create_users_table
+  0001_01_01_000001_create_cache_table
+  0001_01_01_000002_create_jobs_table
+  ..._create_schools_table
+  ..._create_classes_table
+  ..._create_students_table
+  ..._create_coach_classes_table
+  ..._create_reports_table
+  ..._create_report_attendances_table
+  ..._create_report_media_table
 
----
-
-### Tabel: `users`
-**Tujuan**: Menyimpan data pengguna (Admin, Coach, School PIC)
-
-| Kolom | Tipe | Null | Deskripsi |
-|-------|------|------|-----------|
-| id | BIGINT | NO | Primary key |
-| name | VARCHAR(100) | NO | Nama pengguna |
-| email | VARCHAR(150) | NO | Email unik |
-| password | VARCHAR(255) | NO | Password terenkripsi (BCrypt) |
-| role | ENUM | NO | Enum: admin, coach, school_pic |
-| school_id | BIGINT | YES | FK ke schools (hanya untuk school_pic) |
-| created_at | TIMESTAMP | NO | Waktu penciptaan |
-| updated_at | TIMESTAMP | NO | Waktu update terakhir |
-
-**Constraints**:
-- PRIMARY KEY (id)
-- UNIQUE KEY (email)
-- FOREIGN KEY (school_id) → schools(id) ON DELETE SET NULL
-
-**Notes**:
-- `role` menentukan tipe user dan akses
-- Hanya `school_pic` yang memiliki `school_id` (bisa NULL untuk admin/coach)
-
----
-
-### Tabel: `classes`
-**Tujuan**: Menyimpan data kelas di sekolah
-
-| Kolom | Tipe | Null | Deskripsi |
-|-------|------|------|-----------|
-| id | BIGINT | NO | Primary key |
-| school_id | BIGINT | NO | FK ke schools |
-| name | VARCHAR(100) | NO | Nama kelas (misal: "Kelas 1A", "Grade 5B") |
-| created_at | TIMESTAMP | NO | Waktu penciptaan |
-| updated_at | TIMESTAMP | NO | Waktu update terakhir |
-
-**Constraints**:
-- PRIMARY KEY (id)
-- FOREIGN KEY (school_id) → schools(id) ON DELETE CASCADE
-
-**Notes**:
-- Setiap kelas harus terkait dengan 1 sekolah
-- Jika sekolah dihapus, kelas otomatis dihapus
-
----
-
-### Tabel: `students`
-**Tujuan**: Menyimpan data siswa
-
-| Kolom | Tipe | Null | Deskripsi |
-|-------|------|------|-----------|
-| id | BIGINT | NO | Primary key |
-| class_id | BIGINT | NO | FK ke classes |
-| name | VARCHAR(100) | NO | Nama siswa |
-| created_at | TIMESTAMP | NO | Waktu penciptaan |
-
-**Constraints**:
-- PRIMARY KEY (id)
-- FOREIGN KEY (class_id) → classes(id) ON DELETE CASCADE
-
-**Notes**:
-- Tabel students TIDAK memiliki `updated_at` (lihat `Student` model)
-- Jika kelas dihapus, siswa otomatis dihapus
-- Siswa tidak bisa pindah kelas (harus delete + add baru)
-
----
-
-### Tabel: `coach_classes`
-**Tujuan**: Menyimpan assignment coach ke kelas (many-to-many)
-
-| Kolom | Tipe | Null | Deskripsi |
-|-------|------|------|-----------|
-| id | BIGINT | NO | Primary key |
-| coach_id | BIGINT | NO | FK ke users (coach) |
-| class_id | BIGINT | NO | FK ke classes |
-
-**Constraints**:
-- PRIMARY KEY (id)
-- FOREIGN KEY (coach_id) → users(id) ON DELETE CASCADE
-- FOREIGN KEY (class_id) → classes(id) ON DELETE CASCADE
-- UNIQUE KEY (coach_id, class_id) - satu coach hanya bisa assign 1x per kelas
-
-**Notes**:
-- Tabel pivot/junction untuk relasi many-to-many
-- Tidak ada timestamps (lihat `CoachClass` model: `public $timestamps = false`)
-
----
-
-### Tabel: `reports`
-**Tujuan**: Menyimpan laporan pembelajaran dari coach
-
-| Kolom | Tipe | Null | Deskripsi |
-|-------|------|------|-----------|
-| id | BIGINT | NO | Primary key |
-| coach_id | BIGINT | NO | FK ke users (coach pembuat) |
-| school_id | BIGINT | NO | FK ke schools |
-| class_id | BIGINT | NO | FK ke classes |
-| report_date | DATE | NO | Tanggal laporan |
-| lesson_material | TEXT | NO | Materi pembelajaran |
-| activity_summary | TEXT | NO | Ringkasan aktivitas |
-| notes | TEXT | YES | Catatan tambahan |
-| photo_path | VARCHAR(255) | YES | Path foto (deprecated, gunakan report_media) |
-| status | ENUM | NO | Enum: draft, submitted, approved, rejected |
-| admin_notes | TEXT | YES | Catatan dari admin saat reject |
-| approved_by | BIGINT | YES | FK ke users (admin approver) |
-| approved_at | TIMESTAMP | YES | Waktu approval |
-| created_at | TIMESTAMP | NO | Waktu penciptaan |
-| updated_at | TIMESTAMP | NO | Waktu update terakhir |
-
-**Constraints**:
-- PRIMARY KEY (id)
-- FOREIGN KEY (coach_id) → users(id)
-- FOREIGN KEY (school_id) → schools(id)
-- FOREIGN KEY (class_id) → classes(id)
-- FOREIGN KEY (approved_by) → users(id) ON DELETE SET NULL
-
-**Status Values**:
-- `draft`: Laporan baru, belum dikirim
-- `submitted`: Coach sudah submit, menunggu approval admin
-- `approved`: Admin menyetujui
-- `rejected`: Admin menolak, coach bisa edit ulang
-
-**Notes**:
-- `photo_path` deprecated, gunakan tabel `report_media` untuk foto/video
-- `admin_notes` hanya diisi saat reject
-- `approved_by` dan `approved_at` hanya diisi saat approve
-
----
-
-### Tabel: `report_attendances`
-**Tujuan**: Menyimpan kehadiran siswa dalam setiap laporan
-
-| Kolom | Tipe | Null | Deskripsi |
-|-------|------|------|-----------|
-| id | BIGINT | NO | Primary key |
-| report_id | BIGINT | NO | FK ke reports |
-| student_id | BIGINT | NO | FK ke students |
-| status | ENUM | NO | Enum: present, absent, sick, permission |
-
-**Constraints**:
-- PRIMARY KEY (id)
-- FOREIGN KEY (report_id) → reports(id) ON DELETE CASCADE
-- FOREIGN KEY (student_id) → students(id) ON DELETE CASCADE
-
-**Status Values**:
-- `present`: Hadir
-- `absent`: Alpa
-- `sick`: Sakit
-- `permission`: Izin
-
-**Notes**:
-- Tidak ada timestamps
-- 1 report = N attendances (satu per siswa di kelas)
-- Jika report dihapus, attendances otomatis dihapus
-
----
-
-### Tabel: `report_media`
-**Tujuan**: Menyimpan metadata foto dan video dalam laporan
-
-| Kolom | Tipe | Null | Deskripsi |
-|-------|------|------|-----------|
-| id | BIGINT | NO | Primary key |
-| report_id | BIGINT | NO | FK ke reports |
-| type | ENUM | NO | Enum: photo, video |
-| path | VARCHAR(255) | NO | URL Cloudinary (HTTPS) |
-| original_name | VARCHAR(255) | YES | Nama file asli dari client |
-| created_at | TIMESTAMP | NO | Waktu penciptaan |
-| updated_at | TIMESTAMP | NO | Waktu update terakhir |
-
-**Constraints**:
-- PRIMARY KEY (id)
-- FOREIGN KEY (report_id) → reports(id) ON DELETE CASCADE
-
-**Type Values**:
-- `photo`: File gambar (jpg, png, etc.)
-- `video`: File video (mp4, mov, etc.)
-
-**Notes**:
-- `path` adalah URL Cloudinary (tidak path lokal)
-- File aktual disimpan di Cloudinary, bukan di server
-- Max 10 foto, 3 video per laporan (validasi di controller)
-
----
-
-## 3. Relationships Overview
-
-### One-to-Many (1:N)
-- **School → Classes**: 1 sekolah punya banyak kelas
-- **School → Users**: 1 sekolah punya banyak pengguna (PIC)
-- **Class → Students**: 1 kelas punya banyak siswa
-- **Class → CoachClasses**: 1 kelas punya banyak assignment coach
-- **Coach → CoachClasses**: 1 coach punya banyak assignment kelas
-- **Coach → Reports**: 1 coach punya banyak laporan
-- **Report → ReportAttendances**: 1 laporan punya banyak absensi siswa
-- **Report → ReportMedia**: 1 laporan punya banyak media (foto/video)
-
-### Many-to-Many (N:M)
-- **Users ↔ Classes** (via `coach_classes`): Coach bisa assign ke banyak kelas
-
-### Cascade Delete Behavior
-- Delete `schools` → hapus `classes`, `users` (school_pic only)
-- Delete `classes` → hapus `students`, `coach_classes`, `reports`
-- Delete `users` (coach) → hapus `coach_classes`, `reports`
-- Delete `reports` → hapus `report_attendances`, `report_media`
-
----
-
-## 4. Indexes
-
-**Current Indexes** (inferred dari migration):
-- Primary keys (auto indexed)
-- Foreign keys (untuk relasi)
-
-**Recommended Additional Indexes** (untuk performa):
-```sql
--- Untuk query laporan by status
-CREATE INDEX idx_reports_status ON reports(status);
-
--- Untuk query laporan by coach
-CREATE INDEX idx_reports_coach_id ON reports(coach_id);
-
--- Untuk query laporan by school
-CREATE INDEX idx_reports_school_id ON reports(school_id);
-
--- Untuk query laporan by report_date
-CREATE INDEX idx_reports_report_date ON reports(report_date);
-
--- Untuk query user by email (login)
-CREATE INDEX idx_users_email ON users(email);
-
--- Untuk query students by class
-CREATE INDEX idx_students_class_id ON students(class_id);
+batch 2 (Agustus 2026)
+  2026_08_14_000000_migrate_admin_role_to_relation_and_expand_roles
+  2026_08_17_000000_create_programs_table
+  2026_08_17_000001_create_program_classes_table
+  2026_08_17_000002_create_school_user_table
 ```
 
----
+## 2. Daftar Tabel
 
-## 5. Data Integrity Rules
+| Tabel | Fungsi | Timestamps |
+|---|---|---|
+| `users` | Akun semua role (termasuk Coach) | ✅ |
+| `schools` | Master sekolah | ✅ |
+| `classes` | Program Kelas milik sekolah | ✅ |
+| `students` | Siswa per kelas | ⚠️ hanya `created_at` |
+| `coach_classes` | Assignment Coach ↔ Kelas | ❌ |
+| `reports` | Laporan pembelajaran | ✅ |
+| `report_attendances` | Absensi per siswa per laporan | ❌ |
+| `report_media` | Foto/video laporan | ✅ |
+| `programs` | Master Program (reusable) | ✅ |
+| `program_classes` | Pivot Program ↔ Kelas | ✅ |
+| `school_user` | Pivot plotting Sekolah ↔ User | ✅ |
+| `sessions` | Session store Laravel | ❌ (pakai `last_activity`) |
+| `migrations` | Internal Laravel | ❌ |
 
-### Constraints & Validations
+Catatan: driver session aktif adalah **`file`**, jadi tabel `sessions` ada tetapi tidak terpakai pada
+konfigurasi saat ini. Mengubah `SESSION_DRIVER=database` akan langsung memakainya tanpa migration baru.
 
-| Rule | Level | Deskripsi |
-|------|-------|-----------|
-| Email unique | DB | Tidak boleh ada 2 user dengan email sama |
-| Coach-Class unique | DB | 1 coach tidak boleh 2x assign ke kelas sama |
-| Role enum | DB | Hanya admin, coach, school_pic |
-| Status enum | DB | draft, submitted, approved, rejected |
-| Attendance status enum | DB | present, absent, sick, permission |
-| Media type enum | DB | photo, video |
-| Foreign keys | DB | Relasi harus valid |
-| Cascade delete | DB | Jika parent hapus, child juga hapus |
+## 3. Skema Per Tabel
 
-### Application-Level Validations
+### 3.1 `users`
 
-| Validasi | Lokasi | Deskripsi |
-|----------|--------|-----------|
-| Report status check | Controller | Laporan hanya bisa diedit jika draft/rejected |
-| Coach authorization | Controller | Coach hanya bisa lihat/edit laporan miliknya |
-| Admin authorization | Controller | Admin check role sebelum akses |
-| School PIC filter | Controller | PIC hanya lihat laporan sekolahnya (approved) |
-| Unique student name | Controller | Tidak boleh ada siswa duplikat di 1 kelas |
-| File type validation | Controller | Foto harus image, video harus video |
+| Kolom | Tipe | Null | Default | Catatan |
+|---|---|---|---|---|
+| `id` | INTEGER | ❌ | AI | PK |
+| `name` | varchar | ✅ | — | |
+| `email` | varchar | ✅ | — | **UNIQUE** |
+| `password` | varchar | ✅ | — | bcrypt (`$2y$`) |
+| `role` | varchar | ❌ | — | salah satu dari 6 role key |
+| `school_id` | INTEGER | ✅ | NULL | legacy single-school; FK → `schools` **SET NULL** |
+| `created_at` / `updated_at` | datetime | ✅ | — | |
 
----
+Nilai `role` yang sah — konstanta di `App\Models\User`:
 
-## 6. Data Flow dalam Database
-
-### Saat Coach Submit Laporan
-
-```
-1. INSERT reports table
-   coach_id: [coach yang login]
-   school_id: [dari class.school_id]
-   class_id: [dari form]
-   report_date: [dari form]
-   lesson_material: [dari form]
-   activity_summary: [dari form]
-   status: 'submitted'
-   created_at: now()
-
-2. INSERT report_media (per photo)
-   report_id: [report yang baru dibuat]
-   type: 'photo'
-   path: [URL dari Cloudinary]
-   original_name: [nama file asli]
-
-3. INSERT report_media (per video)
-   report_id: [report yang baru dibuat]
-   type: 'video'
-   path: [URL dari Cloudinary]
-   original_name: [nama file asli]
-
-4. INSERT report_attendances (per student)
-   report_id: [report yang baru dibuat]
-   student_id: [dari form]
-   status: [present/absent/sick/permission]
+```php
+ROLE_SUPERADMIN = 'superadmin'
+ROLE_RELATION   = 'relation'
+ROLE_SPV_COACH  = 'spv_coach'
+ROLE_COACH      = 'coach'
+ROLE_SCHOOL_PIC = 'school_pic'
+ROLE_FINANCE    = 'finance'
 ```
 
-### Saat Admin Approve
+Kolom ini **bukan** enum di level database — validasinya di aplikasi lewat
+`Rule::in(User::roleKeys())`. Konsekuensi: penulisan langsung via SQL bisa memasukkan role tak dikenal.
+Aman secara akses (allow-list `allows()` mengembalikan `false` untuk role tak dikenal), tetapi user
+tersebut akan gagal login dengan 403 dari `redirectByRole()`.
 
-```
-UPDATE reports
-SET
-  status: 'approved',
-  approved_by: [admin yang login],
-  approved_at: now()
-WHERE id = [report_id]
-```
+Role `admin` versi lama sudah tidak ada — dimigrasikan oleh
+`2026_08_14_000000_migrate_admin_role_to_relation_and_expand_roles`.
 
-### Saat Admin Reject
+**Dua sumber scope sekolah.** `users.school_id` (legacy) dan pivot `school_user` (multi-sekolah)
+digabung oleh:
 
-```
-UPDATE reports
-SET
-  status: 'rejected',
-  admin_notes: [alasan reject]
-WHERE id = [report_id]
-```
-
----
-
-## 7. Query Patterns Umum
-
-### Get all reports pending approval
-```sql
-SELECT r.*, u.name as coach_name, s.name as school_name, c.name as class_name
-FROM reports r
-JOIN users u ON r.coach_id = u.id
-JOIN schools s ON r.school_id = s.id
-JOIN classes c ON r.class_id = c.id
-WHERE r.status = 'submitted'
-ORDER BY r.created_at DESC
-LIMIT 20;
+```php
+public function assignedSchoolIds(): array
+{
+    $ids = $this->schools()->pluck('schools.id')->all();
+    if ($this->school_id) { $ids[] = $this->school_id; }
+    return array_values(array_unique(array_map('intval', $ids)));
+}
 ```
 
-### Get approved reports for specific school
-```sql
-SELECT r.*, u.name as coach_name, c.name as class_name
-FROM reports r
-JOIN users u ON r.coach_id = u.id
-JOIN classes c ON r.class_id = c.id
-WHERE r.school_id = [school_id]
-  AND r.status = 'approved'
-ORDER BY r.report_date DESC;
+Penggabungan ini disengaja: akun lama yang hanya punya `school_id` dan akun baru yang hanya punya baris
+pivot keduanya tetap ter-scope. Tidak ada bentuk record yang membuat akun jadi tanpa scope.
+
+### 3.2 `schools`
+
+| Kolom | Tipe | Null | Catatan |
+|---|---|---|---|
+| `id` | INTEGER | ❌ | PK |
+| `name` | varchar | ❌ | wajib (`required|max:150`) |
+| `address` | text/varchar | ✅ | |
+| `pic_name` | varchar | ✅ | nama PIC sebagai teks, bukan FK ke `users` |
+| `created_at` / `updated_at` | datetime | ✅ | |
+
+`pic_name` adalah label deskriptif. Relasi PIC yang **sesungguhnya** menentukan akses adalah
+`school_user` / `users.school_id`. Mengubah `pic_name` tidak mengubah hak akses siapa pun.
+
+### 3.3 `classes` — "Program Kelas"
+
+| Kolom | Tipe | Null | Catatan |
+|---|---|---|---|
+| `id` | INTEGER | ❌ | PK |
+| `school_id` | INTEGER | ❌ | FK → `schools` **CASCADE** |
+| `name` | varchar | ❌ | `required|max:100` |
+| `created_at` / `updated_at` | datetime | ✅ | |
+
+Model-nya bernama `SchoolClass` (bukan `Class`, karena `class` adalah keyword PHP). Nama tabel
+di-override eksplisit:
+
+```php
+protected $table = 'classes';
 ```
 
-### Get report detail with all relations
-```sql
-SELECT r.*, 
-       u.name as coach_name,
-       a.name as admin_name,
-       s.name as school_name,
-       c.name as class_name
-FROM reports r
-LEFT JOIN users u ON r.coach_id = u.id
-LEFT JOIN users a ON r.approved_by = a.id
-LEFT JOIN schools s ON r.school_id = s.id
-LEFT JOIN classes c ON r.class_id = c.id
-WHERE r.id = [report_id];
+### 3.4 `students`
 
--- Then query relations separately:
-SELECT * FROM report_attendances WHERE report_id = [report_id];
-SELECT * FROM report_media WHERE report_id = [report_id];
+| Kolom | Tipe | Null | Default | Catatan |
+|---|---|---|---|---|
+| `id` | INTEGER | ❌ | AI | PK |
+| `class_id` | INTEGER | ❌ | — | FK → `classes` **CASCADE** |
+| `name` | varchar | ❌ | — | `required|max:100` |
+| `created_at` | datetime | ✅ | `CURRENT_TIMESTAMP` | |
+
+**Tidak ada `updated_at`.** Karena itu model mematikan timestamps otomatis:
+
+```php
+public $timestamps = false;
 ```
 
-### Get coach's classes
-```sql
-SELECT c.*, s.name as school_name
-FROM classes c
-JOIN coach_classes cc ON c.id = cc.class_id
-JOIN schools s ON c.school_id = s.id
-WHERE cc.coach_id = [coach_id];
+Kalau `$timestamps` dibiarkan `true`, setiap `save()` akan mencoba menulis `updated_at` dan gagal.
+
+Tidak ada unique constraint pada `(class_id, name)`. Pencegahan duplikat dilakukan di aplikasi:
+
+```php
+// StudentController@store
+if ($class->students()->where('name', $validated['name'])->exists()) {
+    return back()->withErrors(['name' => 'Siswa dengan nama tersebut sudah ada di kelas ini.']);
+}
 ```
 
+### 3.5 `coach_classes`
+
+| Kolom | Tipe | Null | Catatan |
+|---|---|---|---|
+| `id` | INTEGER | ❌ | PK |
+| `coach_id` | INTEGER | ❌ | FK → `users` **CASCADE** |
+| `class_id` | INTEGER | ❌ | FK → `classes` **CASCADE** |
+
+**UNIQUE (`coach_id`, `class_id`)** — assignment ganda ditolak di level database. Aplikasi memakai
+`CoachClass::firstOrCreate()` supaya penolakan itu berubah menjadi pesan, bukan exception:
+
+```php
+// Admin\CoachController@assign
+$existing = CoachClass::where('coach_id', $coach->id)->where('class_id', $class->id)->first();
+if ($existing) {
+    return back()->with('error', 'Coach sudah di-assign ke kelas ini.');
+}
+```
+
+Tabel ini adalah **satu-satunya sumber kebenaran** untuk pertanyaan "kelas mana yang boleh dilaporkan
+Coach ini". `Coach\ReportController::assignedClassOrFail()` membacanya dan tidak mempercayai `class_id`
+dari form.
+
+### 3.6 `reports`
+
+| Kolom | Tipe | Null | Default | Catatan |
+|---|---|---|---|---|
+| `id` | INTEGER | ❌ | AI | PK |
+| `coach_id` | INTEGER | ❌ | — | FK → `users` **NO ACTION** |
+| `school_id` | INTEGER | ❌ | — | FK → `schools` **NO ACTION** |
+| `class_id` | INTEGER | ❌ | — | FK → `classes` **NO ACTION** |
+| `report_date` | date | ❌ | — | |
+| `lesson_material` | text | ❌ | — | `max:1000` |
+| `activity_summary` | text | ❌ | — | `max:2000` |
+| `notes` | text | ✅ | NULL | **inilah Accident Notes** |
+| `photo_path` | varchar | ✅ | NULL | legacy single-photo; media baru di `report_media` |
+| `status` | varchar | ✅ | `'draft'` | |
+| `admin_notes` | text | ✅ | NULL | alasan reject |
+| `approved_by` | INTEGER | ✅ | NULL | FK → `users` **SET NULL** |
+| `approved_at` | datetime | ✅ | NULL | |
+| `created_at` / `updated_at` | datetime | ✅ | — | |
+
+**Nilai `status`:** `draft` · `submitted` · `approved` · `rejected`.
+
+Default kolom adalah `draft`, tetapi laporan yang dikirim Coach lewat UI dibuat dengan
+`status = 'submitted'` secara eksplisit. **Tidak ada status `pending`** — dokumentasi lama yang
+menyebutnya salah.
+
+`notes` merangkap sebagai Accident Notes (Phase 12). Tidak ada tabel terpisah: kalau `notes` tidak
+kosong, detail laporan menampilkannya sebagai blok merah urgent lewat partial
+`resources/views/partials/accident-notes.blade.php`. Isi multi-baris dipertahankan dengan
+`{!! nl2br(e($report->notes)) !!}`.
+
+### 3.7 `report_attendances`
+
+| Kolom | Tipe | Null | Default | Catatan |
+|---|---|---|---|---|
+| `id` | INTEGER | ❌ | AI | PK |
+| `report_id` | INTEGER | ❌ | — | FK → `reports` **CASCADE** |
+| `student_id` | INTEGER | ❌ | — | FK → `students` **CASCADE** |
+| `status` | varchar | ✅ | `'present'` | `present` · `absent` · `sick` · `permission` |
+
+Tanpa timestamps → `public $timestamps = false;`.
+
+Tidak ada unique `(report_id, student_id)`. Aplikasi menulisnya sekali per laporan di dalam transaksi,
+dan pada `update()` baris lama dihapus dulu sebelum ditulis ulang.
+
+**Key array `attendance` adalah input juga.** Form mengirim `attendance[student_id] => status`. Validasi
+Laravel memeriksa *value*-nya (`in:present,absent,sick,permission`) tetapi tidak memeriksa *key*-nya,
+sehingga dulu siswa dari kelas lain bisa ditempelkan ke laporan (BUG-004). Sekarang diperiksa eksplisit:
+
+```php
+private function assertAttendanceBelongsToClass(array $attendance, int $classId): void
+{
+    $studentIds = array_map('intval', array_keys($attendance));
+    $validCount = Student::where('class_id', $classId)->whereIn('id', $studentIds)->count();
+    abort_unless($validCount === count($studentIds), 422, 'Data absensi tidak valid untuk kelas ini.');
+}
+```
+
+### 3.8 `report_media`
+
+| Kolom | Tipe | Null | Catatan |
+|---|---|---|---|
+| `id` | INTEGER | ❌ | PK |
+| `report_id` | INTEGER | ❌ | FK → `reports` **CASCADE** |
+| `type` | varchar | ❌ | `photo` \| `video` |
+| `path` | varchar | ❌ | `secure_url` dari Cloudinary |
+| `original_name` | varchar | ✅ | nama file asli dari user |
+| `created_at` / `updated_at` | datetime | ✅ | |
+
+⚠️ **Tidak ada kolom `cloudinary_public_id`** (MEDIA-001 / ISSUE-015). Karena `delete()` Cloudinary
+membutuhkan public_id, penghapusan baris `report_media` **tidak** menghapus aset di Cloudinary — aset
+menjadi orphan. Perbaikannya memerlukan migration penambahan kolom + backfill, dan itu di luar scope
+dokumentasi ini; didokumentasikan, tidak diubah.
+
+### 3.9 `programs`
+
+| Kolom | Tipe | Null | Default | Catatan |
+|---|---|---|---|---|
+| `id` | INTEGER | ❌ | AI | PK |
+| `name` | varchar | ❌ | — | `required|max:150` |
+| `code` | varchar | ✅ | NULL | **UNIQUE**, `nullable|max:50` |
+| `description` | text | ✅ | NULL | |
+| `status` | varchar | ✅ | `'active'` | `active` \| `inactive` |
+| `created_at` / `updated_at` | datetime | ✅ | — | |
+
+`code` unique tetapi nullable — beberapa program tanpa kode diperbolehkan (SQLite memperlakukan setiap
+NULL sebagai unik).
+
+### 3.10 `program_classes`
+
+| Kolom | Tipe | Null | Catatan |
+|---|---|---|---|
+| `id` | INTEGER | ❌ | PK |
+| `program_id` | INTEGER | ❌ | FK → `programs` **CASCADE** |
+| `class_id` | INTEGER | ❌ | FK → `classes` **CASCADE** |
+| `created_at` / `updated_at` | datetime | ✅ | |
+
+**UNIQUE (`program_id`, `class_id`)**. Ditulis lewat `sync()` di dalam transaksi:
+
+```php
+DB::transaction(function () use ($validated) {
+    $program = Program::create([...]);
+    $program->classes()->sync($validated['class_ids']);
+});
+```
+
+### 3.11 `school_user`
+
+| Kolom | Tipe | Null | Catatan |
+|---|---|---|---|
+| `id` | INTEGER | ❌ | PK |
+| `school_id` | INTEGER | ❌ | FK → `schools` **CASCADE** |
+| `user_id` | INTEGER | ❌ | FK → `users` **CASCADE** |
+| `created_at` / `updated_at` | datetime | ✅ | |
+
+**UNIQUE (`school_id`, `user_id`)**. Tabel inti School Plotting (Phase 9). Diisi lewat
+`Admin\UserController` dengan `$user->schools()->sync($schoolIds)`, dan wajib berisi minimal satu baris
+untuk role ter-scope:
+
+```php
+if (in_array($validated['role'], User::schoolScopedRoles(), true) && empty($schoolIds)) {
+    return back()->withErrors(['school_ids' => 'Minimal satu sekolah wajib dipilih untuk role ini.']);
+}
+```
+
+`User::schoolScopedRoles()` = `[ROLE_SCHOOL_PIC, ROLE_FINANCE]`.
+
+### 3.12 `sessions`
+
+`id` (varchar PK) · `user_id` · `ip_address` · `user_agent` · `payload` (NOT NULL) · `last_activity`
+(NOT NULL). Tidak terpakai selama `SESSION_DRIVER=file`.
+
+## 4. Foreign Key Lengkap
+
+Hasil `PRAGMA foreign_key_list` untuk seluruh tabel — **bukan** asumsi.
+
+| Tabel anak | Kolom | Induk | onDelete |
+|---|---|---|---|
+| `classes` | `school_id` | `schools` | CASCADE |
+| `students` | `class_id` | `classes` | CASCADE |
+| `coach_classes` | `coach_id` | `users` | CASCADE |
+| `coach_classes` | `class_id` | `classes` | CASCADE |
+| `report_attendances` | `report_id` | `reports` | CASCADE |
+| `report_attendances` | `student_id` | `students` | CASCADE |
+| `report_media` | `report_id` | `reports` | CASCADE |
+| `program_classes` | `program_id` | `programs` | CASCADE |
+| `program_classes` | `class_id` | `classes` | CASCADE |
+| `school_user` | `school_id` | `schools` | CASCADE |
+| `school_user` | `user_id` | `users` | CASCADE |
+| `users` | `school_id` | `schools` | SET NULL |
+| `reports` | `approved_by` | `users` | SET NULL |
+| `reports` | `school_id` | `schools` | **NO ACTION** |
+| `reports` | `class_id` | `classes` | **NO ACTION** |
+| `reports` | `coach_id` | `users` | **NO ACTION** |
+
+### Tiga FK terakhir adalah keputusan desain, bukan kelalaian
+
+Dokumentasi versi sebelumnya menyatakan `reports` ikut CASCADE saat sekolah/kelas dihapus. **Itu salah.**
+`NO ACTION` pada SQLite berperilaku seperti RESTRICT: database menolak penghapusan induk selama masih
+ada laporan yang menunjuk ke sana.
+
+Alasannya: laporan adalah catatan historis. Menghapus sekolah tidak boleh menghapus jejak pembelajaran
+yang sudah terjadi.
+
+Tanpa penjagaan di aplikasi, penolakan itu muncul sebagai
+`SQLSTATE[23000] Integrity constraint violation: FOREIGN KEY constraint failed` → HTTP 500. Itu BUG-007,
+tercatat 6 kali di log. Sekarang setiap `destroy()` memeriksa lebih dulu:
+
+```php
+// Admin\SchoolController@destroy
+if ($school->reports()->exists()) {
+    return back()->with('error', 'Sekolah tidak bisa dihapus karena masih memiliki laporan. '
+        .'Hapus atau pindahkan laporan terkait terlebih dahulu.');
+}
+
+// Admin\ClassController@destroy   — pola sama
+// Admin\UserController@destroy    — pola sama untuk Coach yang punya laporan
+```
+
+Diuji oleh 6 test berpasangan di `MasterDataIntegrityTest`: tiga "ditolak dengan pesan yang bisa dibaca"
+dan tiga "tetap bisa dihapus kalau tidak punya dependent".
+
+## 5. Index
+
+| Tabel | Index | Jenis |
+|---|---|---|
+| `users` | `email` | UNIQUE |
+| `coach_classes` | (`coach_id`, `class_id`) | UNIQUE |
+| `program_classes` | (`program_id`, `class_id`) | UNIQUE |
+| `school_user` | (`school_id`, `user_id`) | UNIQUE |
+| `programs` | `code` | UNIQUE |
+| semua tabel | `id` | PK |
+
+Kolom FK **tidak** diberi index tambahan secara eksplisit. Pada volume saat ini tidak ada masalah, dan
+tidak ada optimasi spekulatif yang dilakukan (audit performa: seluruh list screen sudah eager-loaded dan
+paginated). Kalau `reports` tumbuh besar, kandidat pertama adalah index komposit
+(`school_id`, `report_date`) dan (`coach_id`, `report_date`) — belum diperlukan.
+
+## 6. Data Seeder
+
+`database/seeders/DatabaseSeeder.php` bersifat **idempoten** (`updateOrCreate` / `firstOrCreate`), jadi
+menjalankannya dua kali tidak menduplikasi baris (BUG-008, sudah diperbaiki).
+
+Akun demo — semua password `password`, semua adalah kredensial publik untuk pengembangan:
+
+| Email | Nama | Role | Scope sekolah |
+|---|---|---|---|
+| `superadmin@lrs.com` | SuperAdmin Utama | `superadmin` | `null` |
+| `admin@lrs.com` | Relation Utama | `relation` | `null` |
+| `spv@lrs.com` | Sari Supervisor | `spv_coach` | `null` |
+| `coach@lrs.com` | Rina Coachella | `coach` | `null` |
+| `pic@lrs.com` | Budi Santoso | `school_pic` | `school_id` + pivot → SD Harapan Bangsa |
+| `finance@lrs.com` | Fajar Finance | `finance` | `school_id` + pivot → SD Harapan Bangsa |
+
+Master data yang dibuat: sekolah **SD Harapan Bangsa** (Jl. Merdeka No. 10, Jakarta; `pic_name` Budi
+Santoso), kelas **Grade 5A**, lima siswa (Andi Pratama, Bela Sari, Citra Dewi, Dito Arifin, Eka Putri),
+dan satu `CoachClass` yang menghubungkan `coach@lrs.com` ke Grade 5A.
+
+Perhatikan: `admin@lrs.com` sekarang ber-role **`relation`**, bukan `admin`. Emailnya dipertahankan supaya
+kredensial dev lama tetap berfungsi.
+
+## 7. Integrity Check
+
+16 pemeriksaan dijalankan pada audit 17 Agustus 2026, semuanya bersih (0 dari 16 gagal). Yang perlu
+diketahui saat memelihara data:
+
+| # | Aturan |
+|---|---|
+| 01–06 | Tidak ada orphan pada `classes`, `students`, `coach_classes`, `reports`, `report_attendances`, `report_media` |
+| 07 | Tidak ada `users.role` di luar 6 role key |
+| 08 | Tidak ada role ter-scope tanpa plotting (`school_user` maupun `school_id`) |
+| 09 | Tidak ada duplikat pada tiga pivot unique |
+| 10 | Tidak ada `reports.status` di luar 4 nilai yang sah |
+| 11 | Tidak ada `report_attendances.status` di luar 4 nilai yang sah |
+| 12 | `approved_by`/`approved_at` konsisten dengan `status = approved` |
+| 13 | Tidak ada password plaintext (semua `$2y$`) |
+| 14 | Tidak ada email duplikat |
+| 15 | `reports.school_id` konsisten dengan `classes.school_id` |
+| **16** | **Tidak ada laporan `submitted`/`approved` dengan nol baris absensi** |
+
+Check 16 ditambahkan karena BUG-012: upload Cloudinary gagal → `Undefined array key "secure_url"` →
+request mati **setelah** baris `reports` commit tetapi **sebelum** loop absensi jalan. Hasilnya laporan
+`submitted` dengan nol absensi — tidak muncul di list mana pun dan tidak terdeteksi 15 check struktural
+pertama. Dua record rusak seperti ini (DATA-001), keduanya sudah diperbaiki pemilik lewat UI, bukan lewat
+SQL. Penulisan laporan sekarang dibungkus `DB::transaction()` sehingga bentuk data itu tidak bisa terjadi
+lagi. Detail: [stabilization/data-integrity-report.md](stabilization/data-integrity-report.md).
+
+## 8. Query Pattern yang Dipakai
+
+```php
+// Scope sekolah — null berarti tanpa filter, array berarti dibatasi
+$ids = $authorization->accessibleSchoolIds($user);
+if ($ids !== null) {
+    $query->whereIn('school_id', $ids);
+}
+```
+
+`$ids !== null`, **bukan** `if ($ids)`. Array kosong `[]` bersifat falsy di PHP, jadi `if ($ids)` akan
+melewati filter dan menampilkan **semua** sekolah untuk akun ter-scope tanpa plotting — kebocoran yang
+persis kebalikan dari niatnya.
+
+```php
+// Absensi — scope lebih dulu, filter request sesudahnya
+ReportAttendance::query()
+    ->with(['student', 'report.school', 'report.schoolClass', 'report.coach'])
+    ->whereHas('report', fn ($q) => $this->scopeReports($q, $user))     // 1. scope
+    ->when($filters['school_id'] ?? null, fn ($q, $v) =>                // 2. filter
+        $q->whereHas('report', fn ($r) => $r->where('school_id', $v)));
+```
+
+```php
+// Export — chunk, jangan get() semuanya
+$query->chunkById(500, function ($rows) use ($handle) { /* fputcsv */ });
+```
+
+## 9. Backup & Pemeliharaan
+
+```bash
+# Backup manual (SQLite = satu file)
+cp database/database.sqlite database/database.sqlite.bak-$(date +%Y%m%d)
+
+# Status migration
+php artisan migrate:status
+
+# Migrasi baru
+php artisan migrate
+```
+
+⚠️ **Jangan** `migrate:fresh` atau `migrate:refresh` pada database yang berisi data nyata — keduanya
+menghapus seluruh tabel. Untuk pengembangan gunakan database terpisah.
+
+Dua file backup masih tertinggal di repo (`database/database.sqlite.bak-20260817`,
+`database/database.sqlite.bak-preseed-20260817`) bersama tiga script debug root (`_dbcheck.php`,
+`_logincheck.php`, `_audit_db.php`). Tercatat sebagai ISSUE-013 / P3-4 dan disarankan dihapus — **tidak**
+dihapus di sini karena aturan "dokumentasikan dulu sebelum menghapus".
+
+## 10. Yang Tidak Ada di Database
+
+| Hal | Status |
+|---|---|
+| Tabel `roles` / `permissions` | Tidak ada — peta capability statis di `AuthorizationService` |
+| Tabel `notifications` | Tidak ada — Phase 13 |
+| Tabel `jobs` / worker aktif | Migration `create_jobs_table` ada, tetapi `QUEUE_CONNECTION=sync` |
+| Kolom `cloudinary_public_id` | Tidak ada — MEDIA-001 |
+| SoftDeletes | Tidak ada di tabel mana pun |
+| Tabel accident notes | Tidak ada — memakai `reports.notes` |

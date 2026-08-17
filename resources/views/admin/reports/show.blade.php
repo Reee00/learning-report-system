@@ -13,6 +13,11 @@
 
     <div class="row">
         <div class="col-md-8">
+            @include('partials.accident-notes', [
+                'notes' => $report->notes,
+                'reportId' => $report->id,
+            ])
+
             <div class="card mb-3">
                 <div class="card-body">
                     <dl class="row mb-0">
@@ -22,9 +27,6 @@
                         <dt class="col-sm-4">Tanggal</dt>    <dd class="col-sm-8">{{ $report->report_date->format('d M Y') }}</dd>
                         <dt class="col-sm-4">Materi</dt>     <dd class="col-sm-8">{{ $report->lesson_material }}</dd>
                         <dd class="col-sm-8">{!! nl2br(e($report->activity_summary)) !!}</dd>
-                        @if($report->notes)
-                        <dd class="col-sm-8">{!! nl2br(e($report->notes)) !!}</dd>
-                        @endif
                     </dl>
                 </div>
             </div>
@@ -104,8 +106,8 @@
             </div>
         </div>
 
-        {{-- Panel Approve/Reject (hanya tampil jika status submitted) --}}
-        @if($report->status === 'submitted')
+        {{-- Panel Approve/Reject (hanya tampil jika status submitted DAN user memiliki hak review) --}}
+        @if($report->status === 'submitted' && ($canReview ?? false))
         <div class="col-md-4">
             <div class="card border-success mb-3">
                 <div class="card-header bg-success text-white">✅ Setujui Laporan</div>

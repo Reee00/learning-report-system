@@ -13,6 +13,8 @@ return Application::configure(basePath: dirname(__DIR__))
 ->withMiddleware(function (Middleware $middleware) {
     $middleware->alias([
         'role' => \App\Http\Middleware\RoleMiddleware::class,
+        'permission' => \App\Http\Middleware\PermissionMiddleware::class,
+        'permission_any' => \App\Http\Middleware\PermissionAnyMiddleware::class,
         'auth' => \Illuminate\Auth\Middleware\Authenticate::class,
     ]);
     $middleware->trustProxies(at: '*');    

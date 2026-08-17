@@ -7,7 +7,7 @@ Aplikasi ini dibangun dengan Laravel dan menyediakan fitur untuk:
 - login dan autentikasi pengguna
 - manajemen sekolah, kelas, siswa, coach, dan PIC sekolah
 - coach membuat laporan pembelajaran
-- admin memeriksa, menyetujui, atau menolak laporan
+- SuperAdmin/Relation mengelola data dan memeriksa laporan sesuai authorization
 - PIC sekolah melihat laporan untuk sekolahnya
 
 ## 2. Teknologi Utama
@@ -29,23 +29,25 @@ Berikut folder dan file penting yang harus diketahui:
 - `app/Helpers/CloudinaryHelper.php` - helper upload/delete file ke Cloudinary
 
 ## 4. Role Pengguna dan Akses
-Aplikasi menggunakan 3 role utama:
+Aplikasi menggunakan role berikut:
 
-1. `admin`
-   - akses penuh ke dashboard admin
-   - manajemen user
-   - manajemen sekolah dan kelas
-   - melihat, menyetujui, atau menolak laporan
-   - menambahkan coach, assign class
+1. `superadmin`
+   - akses penuh ke dashboard dan modul sistem
+   - manajemen user, role, master data, laporan, dan konfigurasi
 
-2. `coach`
+2. `relation`
+   - akses operasional Relation pada master data dan laporan sesuai permission
+   - input sekolah, kelas, siswa, dan program
+   - export attendance sesuai scope
+
+3. `coach`
    - membuat laporan pembelajaran
    - mengedit laporan dengan status `draft` atau `rejected`
    - melihat daftar kelas yang di-assign
    - upload foto dan video
    - menyimpan absensi siswa
 
-3. `school_pic`
+4. `school_pic`
    - melihat dashboard sekolah sendiri
    - melihat laporan untuk sekolah yang terhubung
 
@@ -61,8 +63,8 @@ Semua rute penting berada di dalam middleware `auth`.
 ### 5.2 Rute dan Group Akses
 - `Route::middleware(['auth', 'role:coach'])->prefix('coach')->name('coach.')->group(...)`
   - Mengelola laporan coach
-- `Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(...)`
-  - Dashboard admin, user, schools, classes, coaches, reports
+- `Route::middleware(['auth', 'role:relation,superadmin'])->prefix('admin')->name('admin.')->group(...)`
+  - Route prefix `admin` dipertahankan sebagai compatibility layer untuk dashboard, user, schools, classes, coaches, dan reports
 - `Route::middleware(['auth', 'role:school_pic'])->prefix('pic')->name('pic.')->group(...)`
   - Dashboard PIC sekolah
 - Rute publik untuk siswa:
@@ -79,8 +81,8 @@ Semua rute penting berada di dalam middleware `auth`.
 - Jika tidak sesuai, return `403 Forbidden`
 
 Contoh penggunaan:
-- `middleware('role:admin')`
-- `middleware('role:coach,admin')`
+- `middleware('role:relation,superadmin')`
+- `middleware('role:coach,relation,superadmin')` jika capability tersebut memang dibagi
 
 ## 6. Model Utama dan Relasi
 ### 6.1 `User`
@@ -221,7 +223,7 @@ php artisan serve
 
 ## 12. Tips Bekerja di Proyek Ini
 - Pelajari `routes/web.php` untuk memahami URL utama dan namespace controller.
-- Baca controller sesuai role: `Admin`, `Coach`, `Student`, `Pic`.
+- Baca controller sesuai role: `Admin` (technical namespace compatibility), `Coach`, `Student`, dan `Pic`.
 - Pastikan `RoleMiddleware` digunakan di semua rute yang butuh proteksi role.
 - Jika menambahkan field baru pada `Report`, update model, migrasi, controller, dan view.
 - Untuk debug upload Cloudinary, cek `config/services.php` dan environment variable.

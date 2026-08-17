@@ -23,9 +23,9 @@
                     <label class="form-label mb-1">Filter Role</label>
                     <select name="role" class="form-select form-select-sm">
                         <option value="">Semua Role</option>
-                        <option value="admin"      {{ request('role') === 'admin'      ? 'selected' : '' }}>Admin</option>
-                        <option value="coach"      {{ request('role') === 'coach'      ? 'selected' : '' }}>Coach</option>
-                        <option value="school_pic" {{ request('role') === 'school_pic' ? 'selected' : '' }}>School PIC</option>
+                        @foreach(\App\Models\User::roleLabels() as $roleKey => $roleLabel)
+                            <option value="{{ $roleKey }}" {{ request('role') === $roleKey ? 'selected' : '' }}>{{ $roleLabel }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="col-md-3 d-flex gap-2">
@@ -46,16 +46,12 @@
                         <th>Nama</th>
                         <th>Email</th>
                         <th>Role</th>
-                        <th>Sekolah (PIC)</th>
+                        <th>Sekolah (Scope)</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                 @forelse($users as $user)
-                    @php
-                        $roleColors = ['admin' => 'danger', 'coach' => 'primary', 'school_pic' => 'success'];
-                        $roleLabels = ['admin' => 'Admin', 'coach' => 'Coach', 'school_pic' => 'School PIC'];
-                    @endphp
                     <tr>
                         <td>{{ $loop->iteration }}</td>
                         <td>
@@ -66,11 +62,19 @@
                         </td>
                         <td>{{ $user->email }}</td>
                         <td>
-                            <span class="badge bg-{{ $roleColors[$user->role] }}">
-                                {{ $roleLabels[$user->role] }}
+                            <span class="badge bg-{{ $user->roleBadgeColor() }}">
+                                {{ $user->roleLabel() }}
                             </span>
                         </td>
-                        <td>{{ $user->school?->name ?? '-' }}</td>
+                        <td>
+                            @if($user->isSchoolScoped() && $user->schools->isNotEmpty())
+                                @foreach($user->schools as $assignedSchool)
+                                    <span class="badge bg-success me-1 mb-1">{{ $assignedSchool->name }}</span>
+                                @endforeach
+                            @else
+                                -
+                            @endif
+                        </td>
                         <td>
                             <div class="d-flex gap-1">
                                 {{-- Tombol Edit --}}
@@ -124,23 +128,24 @@
                                             <label class="form-label">Role</label>
                                             <select name="role" class="form-select"
                                                     onchange="toggleSchoolField(this, 'editSchool{{ $user->id }}')">
-                                                <option value="admin"      {{ $user->role === 'admin'      ? 'selected' : '' }}>Admin</option>
-                                                <option value="coach"      {{ $user->role === 'coach'      ? 'selected' : '' }}>Coach</option>
-                                                <option value="school_pic" {{ $user->role === 'school_pic' ? 'selected' : '' }}>School PIC</option>
+                                                @foreach(\App\Models\User::roleLabels() as $roleKey => $roleLabel)
+                                                    <option value="{{ $roleKey }}" {{ $user->role === $roleKey ? 'selected' : '' }}>{{ $roleLabel }}</option>
+                                                @endforeach
                                             </select>
                                         </div>
                                         <div class="mb-3" id="editSchool{{ $user->id }}"
-                                             style="{{ $user->role === 'school_pic' ? '' : 'display:none' }}">
-                                            <label class="form-label">Sekolah <span class="text-danger">*</span></label>
-                                            <select name="school_id" class="form-select">
-                                                <option value="">— Pilih Sekolah —</option>
+                                             style="{{ $user->isSchoolScoped() ? '' : 'display:none' }}">
+                                            <label class="form-label">Sekolah Scope <span class="text-danger">*</span></label>
+                                            @php($assignedSchoolIds = $user->assignedSchoolIds())
+                                            <select name="school_ids[]" class="form-select" multiple size="4">
                                                 @foreach($schools as $school)
                                                     <option value="{{ $school->id }}"
-                                                        {{ $user->school_id == $school->id ? 'selected' : '' }}>
+                                                        {{ in_array($school->id, $assignedSchoolIds, true) ? 'selected' : '' }}>
                                                         {{ $school->name }}
                                                     </option>
                                                 @endforeach
                                             </select>
+                                            <div class="form-text">Gunakan Ctrl/Cmd untuk memilih beberapa sekolah.</div>
                                         </div>
                                     </div>
                                     <div class="modal-footer">
@@ -257,22 +262,25 @@
                         <select name="role" class="form-select" required
                                 onchange="toggleSchoolField(this, 'tambahSchoolField')">
                             <option value="">— Pilih Role —</option>
-                            <option value="admin">Admin</option>
-                            <option value="coach">Coach</option>
-                            <option value="school_pic">School PIC</option>
+                            @foreach(\App\Models\User::roleLabels() as $roleKey => $roleLabel)
+                                <option value="{{ $roleKey }}" {{ old('role') === $roleKey ? 'selected' : '' }}>{{ $roleLabel }}</option>
+                            @endforeach
                         </select>
                     </div>
 
-                    {{-- Field sekolah, hanya muncul jika role = school_pic --}}
-                    <div class="mb-3" id="tambahSchoolField" style="display:none">
-                        <label class="form-label">Sekolah <span class="text-danger">*</span></label>
-                        <select name="school_id" class="form-select">
-                            <option value="">— Pilih Sekolah —</option>
+                    {{-- Field sekolah, hanya muncul untuk role yang di-scope per sekolah --}}
+                    <div class="mb-3" id="tambahSchoolField"
+                         style="{{ in_array(old('role'), \App\Models\User::schoolScopedRoles(), true) ? '' : 'display:none' }}">
+                        <label class="form-label">Sekolah Scope <span class="text-danger">*</span></label>
+                        <select name="school_ids[]" class="form-select" multiple size="4">
                             @foreach($schools as $school)
-                                <option value="{{ $school->id }}">{{ $school->name }}</option>
+                                <option value="{{ $school->id }}"
+                                    {{ in_array($school->id, (array) old('school_ids', [])) ? 'selected' : '' }}>
+                                    {{ $school->name }}
+                                </option>
                             @endforeach
                         </select>
-                        <div class="form-text">Wajib diisi untuk role School PIC.</div>
+                        <div class="form-text">Wajib untuk School PIC dan Finance; bisa memilih lebih dari satu.</div>
                     </div>
 
                     <div class="mb-3">
@@ -299,14 +307,13 @@
 
 @section('scripts')
 <script>
-// Tampilkan/sembunyikan field sekolah berdasarkan role yang dipilih
+// Tampilkan/sembunyikan field sekolah berdasarkan role yang dipilih.
+// Daftar role berasal dari backend agar tidak pernah beda dengan validasi.
+const SCHOOL_SCOPED_ROLES = @json(\App\Models\User::schoolScopedRoles());
+
 function toggleSchoolField(selectEl, targetId) {
     const field = document.getElementById(targetId);
-    if (selectEl.value === 'school_pic') {
-        field.style.display = 'block';
-    } else {
-        field.style.display = 'none';
-    }
+    field.style.display = SCHOOL_SCOPED_ROLES.includes(selectEl.value) ? 'block' : 'none';
 }
 </script>
 @endsection

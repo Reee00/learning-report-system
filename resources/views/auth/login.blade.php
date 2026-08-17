@@ -55,7 +55,8 @@
 
             <hr class="mt-4">
             <p class="text-center text-muted small mb-0">
-                Demo: admin@lrs.com / coach@lrs.com / pic@lrs.com<br>
+                Relation: admin@lrs.com / SuperAdmin: superadmin@lrs.com<br>
+                Coach: coach@lrs.com / PIC: pic@lrs.com<br>
                 Password: <code>password</code>
             </p>
         </div>

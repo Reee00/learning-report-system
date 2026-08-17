@@ -4,7 +4,12 @@
 @section('content')
 <div class="container py-4">
     <h4 class="mb-1">📊 Dashboard Laporan Sekolah</h4>
-    <p class="text-muted mb-4">{{ Auth::user()->school->name }}</p>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <p class="text-muted mb-0">{{ $schools->pluck('name')->join(', ') ?: 'Belum ada sekolah terplot' }}</p>
+        <a href="{{ route('attendance.export', request()->query()) }}" class="btn btn-success btn-sm">
+            Export Attendance CSV
+        </a>
+    </div>
 
     {{-- Statistik --}}
     <div class="row g-3 mb-4">

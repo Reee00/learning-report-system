@@ -2,7 +2,29 @@
 @section('title', 'Data Siswa — ' . $class->name)
 
 @section('content')
+@php
+    $currentUser = auth()->user();
+    $authorization = app(\App\Services\AuthorizationService::class);
+    $canCreateStudents = $currentUser && $authorization->allows($currentUser, 'students.create');
+    $canDeleteStudents = $currentUser && $authorization->allows($currentUser, 'students.delete');
+@endphp
 <div class="container py-4">
+
+    @if (session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
+    @if ($errors->any())
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     {{-- Header --}}
     <div class="mb-4">
@@ -40,7 +62,9 @@
                                 <tr>
                                     <th width="50">#</th>
                                     <th>Nama Siswa</th>
-                                    <th width="80"></th>
+                                    @if($canDeleteStudents)
+                                        <th width="80">Aksi</th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody>
@@ -50,14 +74,16 @@
                                         {{ ($students->currentPage() - 1) * $students->perPage() + $loop->iteration }}
                                     </td>
                                     <td>{{ $student->name }}</td>
-                                    <td>
-                                        <form method="POST"
-                                              action="{{ route('students.destroy', [$class, $student]) }}"
-                                              onsubmit="return confirm('Hapus siswa {{ $student->name }}?')">
-                                            @csrf @method('DELETE')
-                                            <button class="btn btn-sm btn-outline-danger">Hapus</button>
-                                        </form>
-                                    </td>
+                                    @if($canDeleteStudents)
+                                        <td>
+                                            <form method="POST"
+                                                  action="{{ route('students.destroy', [$class, $student]) }}"
+                                                  onsubmit="return confirm('Hapus siswa {{ $student->name }}?')">
+                                                @csrf @method('DELETE')
+                                                <button class="btn btn-sm btn-outline-danger">Hapus</button>
+                                            </form>
+                                        </td>
+                                    @endif
                                 </tr>
                             @endforeach
                             </tbody>
@@ -71,6 +97,7 @@
             </div>
         </div>
 
+        @if($canCreateStudents)
         {{-- KOLOM KANAN: Form Tambah --}}
         <div class="col-md-4">
 
@@ -151,6 +178,7 @@
             </div>
 
         </div>
+        @endif
     </div>
 </div>
 @endsection

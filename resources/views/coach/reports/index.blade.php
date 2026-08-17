@@ -10,6 +10,13 @@
         </a>
     </div>
 
+    @foreach($reports as $report)
+        @include('partials.accident-notes', [
+            'notes' => $report->notes,
+            'reportId' => $report->id,
+        ])
+    @endforeach
+
     <div class="card">
         <div class="table-responsive">
             <table class="table table-hover mb-0">

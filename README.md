@@ -1,15 +1,15 @@
 # Learning Report System (LRS)
 
 ## Deskripsi Proyek
-**Learning Report System** adalah aplikasi berbasis web yang dirancang untuk menjadi sistem manajemen dan pelaporan hasil pembelajaran. Aplikasi ini memfasilitasi pembagian peran (Admin, Pelatih/Coach, dan PIC Sekolah) untuk mencatat, mengelola, serta memonitor progres belajar peserta didik secara terpusat dan efisien.
+**Learning Report System** adalah aplikasi berbasis web yang dirancang untuk menjadi sistem manajemen dan pelaporan hasil pembelajaran. Aplikasi ini memfasilitasi pembagian peran (SuperAdmin, Relation, Pelatih/Coach, dan PIC Sekolah) untuk mencatat, mengelola, serta memonitor progres belajar peserta didik secara terpusat dan efisien.
 
 ## Fitur Utama
-* **Manajemen Multi-Role:** Akses terpisah dengan antarmuka spesifik untuk Admin (kendali penuh), Coach (pelapor), dan PIC Sekolah (pemantau).
+* **Manajemen Multi-Role:** Akses terpisah dengan antarmuka spesifik untuk SuperAdmin (kendali penuh), Relation (operasional), Coach (pelapor), dan PIC Sekolah (pemantau).
 * **Pelaporan Progres Belajar:** Pencatatan materi pembelajaran, ringkasan aktivitas, absensi kehadiran siswa, hingga unggahan bukti foto/video.
 * **Manajemen Master Data:** Pengelolaan data terpusat untuk entitas Sekolah, Kelas, Siswa, dan Pelatih.
 * **Import/Export Data:** Dukungan impor data daftar siswa secara massal menggunakan format Excel (`fast-excel`).
 * **Cloud Media Storage:** Terintegrasi penuh dengan ekosistem Cloudinary untuk penyimpanan berkas gambar dan video yang dinamis.
-* **Review Laporan:** Alur persetujuan (_Approve_ / _Reject_) laporan oleh tim Admin sebelum laporan diteruskan ke PIC Sekolah terkait.
+* **Review Laporan:** Alur persetujuan (_Approve_ / _Reject_) laporan oleh tim operasional yang berwenang sebelum laporan diteruskan ke PIC Sekolah terkait.
 
 ## Tech Stack
 * **Bahasa Pemrograman:** PHP (8.2 / 8.3), JavaScript

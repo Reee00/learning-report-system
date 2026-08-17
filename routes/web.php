@@ -1,71 +1,182 @@
 <?php
+
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Coach\ReportController as CoachReportController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboard;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\SchoolController;
 use App\Http\Controllers\Admin\ClassController;
+use App\Http\Controllers\Admin\ProgramController;
+use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SchoolPic\DashboardController as PicDashboard;
 use Illuminate\Support\Facades\Route;
 
 // ===== PUBLIC ROUTES =====
 Route::get('/', fn() => redirect()->route('login'));
-Route::get('/login',  [LoginController::class, 'showForm'])->name('login');
+Route::get('/login', [LoginController::class, 'showForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
-// ===== STUDENT ROUTES (Admin + Coach + School PIC) =====
+
+// ===== ATTENDANCE SCOPE AND EXPORT =====
+Route::get('/attendance', [AttendanceController::class, 'index'])
+    ->middleware(['auth', 'permission:attendance.view'])
+    ->name('attendance.index');
+Route::get('/attendance/export', [AttendanceController::class, 'export'])
+    ->middleware(['auth', 'permission_any:attendance.export,attendance.export_csv'])
+    ->name('attendance.export');
+
+// ===== STUDENT ROUTES =====
 Route::middleware('auth')->group(function () {
-    Route::get('/classes/{class}/students',         [StudentController::class, 'show'])->name('students.show');
-    Route::post('/classes/{class}/students',        [StudentController::class, 'store'])->name('students.store');
-    Route::post('/classes/{class}/students/import', [StudentController::class, 'import'])->name('students.import');
-    Route::delete('/classes/{class}/students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
-    Route::get('/students/template',                [StudentController::class, 'template'])->name('students.template');
+    Route::get('/classes/{class}/students', [StudentController::class, 'show'])
+        ->middleware('permission:students.view')
+        ->name('students.show');
+    Route::post('/classes/{class}/students', [StudentController::class, 'store'])
+        ->middleware('permission:students.create')
+        ->name('students.store');
+    Route::post('/classes/{class}/students/import', [StudentController::class, 'import'])
+        ->middleware('permission:students.create')
+        ->name('students.import');
+    Route::delete('/classes/{class}/students/{student}', [StudentController::class, 'destroy'])
+        ->middleware('permission:students.delete')
+        ->name('students.destroy');
+    Route::get('/students/template', [StudentController::class, 'template'])
+        ->middleware('permission:students.view')
+        ->name('students.template');
 });
 
-// ===== COACH ROUTES =====
-// Hanya bisa diakses oleh user dengan role 'coach'
+// ===== COACH REPORT ROUTES =====
+// Coach report routes remain role-scoped and now also require the relevant capability.
 Route::middleware(['auth', 'role:coach'])->prefix('coach')->name('coach.')->group(function () {
-    Route::resource('reports', CoachReportController::class)->only(['index','create','store','edit','update']);
+    Route::get('reports', [CoachReportController::class, 'index'])
+        ->middleware('permission:reports.view')
+        ->name('reports.index');
+    Route::get('reports/create', [CoachReportController::class, 'create'])
+        ->middleware('permission:reports.create')
+        ->name('reports.create');
+    Route::post('reports', [CoachReportController::class, 'store'])
+        ->middleware('permission:reports.create')
+        ->name('reports.store');
+    Route::get('reports/{report}/edit', [CoachReportController::class, 'edit'])
+        ->middleware('permission:reports.update')
+        ->name('reports.edit');
+    Route::put('reports/{report}', [CoachReportController::class, 'update'])
+        ->middleware('permission:reports.update')
+        ->name('reports.update');
 });
 
-// ===== ADMIN ROUTES =====
-// Hanya bisa diakses oleh user dengan role 'admin'
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('dashboard', [AdminDashboard::class, 'index'])->name('dashboard');
+// ===== RELATION / SUPERADMIN COMPATIBILITY ROUTES =====
+// URL dan route names admin.* dipertahankan; capability authorization dilakukan
+// melalui permission middleware dan AuthorizationService.
+Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
+    Route::get('dashboard', [AdminDashboard::class, 'index'])
+        ->middleware('permission:dashboard.view')
+        ->name('dashboard');
 
-    // Manajemen Akun
-Route::get('users', [\App\Http\Controllers\Admin\UserController::class, 'index'])->name('users.index');
-Route::post('users', [\App\Http\Controllers\Admin\UserController::class, 'store'])->name('users.store');
-Route::put('users/{user}', [\App\Http\Controllers\Admin\UserController::class, 'update'])->name('users.update');
-Route::patch('users/{user}/reset-password', [\App\Http\Controllers\Admin\UserController::class, 'resetPassword'])->name('users.reset-password');
-Route::delete('users/{user}', [\App\Http\Controllers\Admin\UserController::class, 'destroy'])->name('users.destroy');
-    // Laporan
-    Route::get('reports',              [AdminReportController::class, 'index'])->name('reports.index');
-    Route::get('reports/{report}',     [AdminReportController::class, 'show'])->name('reports.show');
-    Route::patch('reports/{report}/approve', [AdminReportController::class, 'approve'])->name('reports.approve');
-    Route::patch('reports/{report}/reject',  [AdminReportController::class, 'reject'])->name('reports.reject');
+    // User management: SuperAdmin only through users.manage.
+    Route::get('users', [\App\Http\Controllers\Admin\UserController::class, 'index'])
+        ->middleware('permission:users.manage')
+        ->name('users.index');
+    Route::post('users', [\App\Http\Controllers\Admin\UserController::class, 'store'])
+        ->middleware('permission:users.manage')
+        ->name('users.store');
+    Route::put('users/{user}', [\App\Http\Controllers\Admin\UserController::class, 'update'])
+        ->middleware('permission:users.manage')
+        ->name('users.update');
+    Route::patch('users/{user}/reset-password', [\App\Http\Controllers\Admin\UserController::class, 'resetPassword'])
+        ->middleware('permission:users.manage')
+        ->name('users.reset-password');
+    Route::delete('users/{user}', [\App\Http\Controllers\Admin\UserController::class, 'destroy'])
+        ->middleware('permission:users.manage')
+        ->name('users.destroy');
 
-    // Master Data
-    Route::resource('schools', SchoolController::class);
-    Route::resource('classes', ClassController::class);
-    // Setelah Route::resource('classes', ClassController::class);
-// Tambahkan baris berikut:
+    // Report review console: listing and detail use reports.view_all so that
+    // Relation, SPV Coach, PIC, Teacher, and SuperAdmin can browse reports.
+    // Coach has reports.view (own reports only) and cannot access this console.
+    // Only the approve/reject actions require reports.review (Relation + SuperAdmin).
+    Route::get('reports', [AdminReportController::class, 'index'])
+        ->middleware('permission:reports.view_all')
+        ->name('reports.index');
+    Route::get('reports/{report}', [AdminReportController::class, 'show'])
+        ->middleware('permission:reports.view_all')
+        ->name('reports.show');
+    Route::patch('reports/{report}/approve', [AdminReportController::class, 'approve'])
+        ->middleware('permission:reports.review')
+        ->name('reports.approve');
+    Route::patch('reports/{report}/reject', [AdminReportController::class, 'reject'])
+        ->middleware('permission:reports.review')
+        ->name('reports.reject');
 
-Route::get('coaches', [\App\Http\Controllers\Admin\CoachController::class, 'index'])->name('coaches.index');
-Route::get('coaches/{coach}', [\App\Http\Controllers\Admin\CoachController::class, 'show'])->name('coaches.show');
-Route::post('coaches/{coach}/assign', [\App\Http\Controllers\Admin\CoachController::class, 'assign'])->name('coaches.assign');
-Route::delete('coaches/{coach}/assignments/{assignment}', [\App\Http\Controllers\Admin\CoachController::class, 'unassign'])->name('coaches.unassign');
+    // School master data.
+    Route::get('schools', [SchoolController::class, 'index'])
+        ->middleware('permission:schools.view')
+        ->name('schools.index');
+    Route::post('schools', [SchoolController::class, 'store'])
+        ->middleware('permission:schools.create')
+        ->name('schools.store');
+    Route::put('schools/{school}', [SchoolController::class, 'update'])
+        ->middleware('permission:schools.update')
+        ->name('schools.update');
+    Route::delete('schools/{school}', [SchoolController::class, 'destroy'])
+        ->middleware('permission:schools.delete')
+        ->name('schools.destroy');
+
+    // SchoolClass / Program Kelas master data.
+    Route::get('classes', [ClassController::class, 'index'])
+        ->middleware('permission:program_classes.view')
+        ->name('classes.index');
+    Route::post('classes', [ClassController::class, 'store'])
+        ->middleware('permission:program_classes.create')
+        ->name('classes.store');
+    Route::delete('classes/{class}', [ClassController::class, 'destroy'])
+        ->middleware('permission:program_classes.delete')
+        ->name('classes.destroy');
+
+    // Reusable Program and its ProgramClass associations.
+    Route::get('programs', [ProgramController::class, 'index'])
+        ->middleware('permission:programs.view')
+        ->name('programs.index');
+    Route::post('programs', [ProgramController::class, 'store'])
+        ->middleware('permission:programs.create')
+        ->name('programs.store');
+
+    // Coach management and assignment.
+    Route::get('coaches', [\App\Http\Controllers\Admin\CoachController::class, 'index'])
+        ->middleware('permission:coaches.view')
+        ->name('coaches.index');
+    Route::post('coaches', [\App\Http\Controllers\Admin\CoachController::class, 'store'])
+        ->middleware('permission:coaches.create')
+        ->name('coaches.store');
+    Route::get('coaches/{coach}', [\App\Http\Controllers\Admin\CoachController::class, 'show'])
+        ->middleware('permission:coaches.view')
+        ->name('coaches.show');
+    Route::put('coaches/{coach}', [\App\Http\Controllers\Admin\CoachController::class, 'update'])
+        ->middleware('permission:coaches.update')
+        ->name('coaches.update');
+    Route::post('coaches/{coach}/assign', [\App\Http\Controllers\Admin\CoachController::class, 'assign'])
+        ->middleware('permission:coaches.assign')
+        ->name('coaches.assign');
+    Route::delete('coaches/{coach}/assignments/{assignment}', [\App\Http\Controllers\Admin\CoachController::class, 'unassign'])
+        ->middleware('permission:coaches.reassign')
+        ->name('coaches.unassign');
 });
 
 // ===== SCHOOL PIC ROUTES =====
-// Hanya bisa diakses oleh user dengan role 'school_pic'
-Route::middleware(['auth', 'role:school_pic'])->prefix('pic')->name('pic.')->group(function () {
-    Route::get('dashboard',           [PicDashboard::class, 'index'])->name('dashboard');
-    Route::get('reports/{report}',    [PicDashboard::class, 'show'])->name('reports.show');
-});
+Route::middleware(['auth', 'role:school_pic', 'permission:attendance.view'])
+    ->prefix('pic')
+    ->name('pic.')
+    ->group(function () {
+        Route::get('dashboard', [PicDashboard::class, 'index'])->name('dashboard');
+        Route::get('reports/{report}', [PicDashboard::class, 'show'])->name('reports.show');
+    });
 
-// ===== API ENDPOINT untuk AJAX (Load Students) =====
-Route::get('/api/classes/{class}/students', function(\App\Models\SchoolClass $class) {
+// ===== AJAX ENDPOINT FOR STUDENTS =====
+Route::get('/api/classes/{class}/students', function (\App\Models\SchoolClass $class) {
+    abort_unless(
+        app(\App\Services\AuthorizationService::class)->canAccessClass(request()->user(), $class),
+        403,
+        'Kamu tidak memiliki akses ke kelas ini.'
+    );
+
     return response()->json($class->students()->select('id', 'name')->get());
-})->middleware('auth');
+})->middleware(['auth', 'permission:students.view']);
