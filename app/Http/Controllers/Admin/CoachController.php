@@ -17,15 +17,23 @@ class CoachController extends Controller
     {
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $this->ensurePermission('coaches.view');
 
-        $coaches = User::where('role', User::ROLE_COACH)
-            ->with(['coachClasses.schoolClass.school'])
-            ->paginate(15);
+        $query = User::where('role', User::ROLE_COACH)
+            ->with(['coachClasses.schoolClass.school']);
 
-        return view('admin.master.coaches', compact('coaches'));
+        if ($search = $request->query('search')) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                  ->orWhere('email', 'like', '%' . $search . '%');
+            });
+        }
+
+        $coaches = $query->paginate(15)->withQueryString();
+
+        return view('admin.master.coaches', compact('coaches', 'search'));
     }
 
     public function store(Request $request)

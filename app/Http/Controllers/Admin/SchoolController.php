@@ -2,10 +2,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Program;
 use App\Models\School;
+use App\Models\SchoolClass;
 use App\Models\User;
 use App\Services\AuthorizationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SchoolController extends Controller
 {
@@ -13,12 +16,20 @@ class SchoolController extends Controller
     {
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $this->ensurePermission('schools.view');
 
-        $schools = School::withCount('classes')->paginate(15);
-        return view('admin.master.schools', compact('schools'));
+        $query = School::withCount('classes');
+
+        if ($search = $request->query('search')) {
+            $query->where('name', 'like', '%' . $search . '%');
+        }
+
+        $schools = $query->paginate(15)->withQueryString();
+        $programs = Program::where('status', 'active')->orderBy('name')->get();
+        
+        return view('admin.master.schools', compact('schools', 'programs', 'search'));
     }
 
     public function store(Request $request)
@@ -29,10 +40,35 @@ class SchoolController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'address' => ['nullable', 'string'],
             'pic_name' => ['nullable', 'string', 'max:100'],
+            'class_names' => ['nullable', 'string'], // comma or newline separated
+            'program_ids' => ['nullable', 'array'],
+            'program_ids.*' => ['integer', 'exists:programs,id'],
         ]);
 
-        School::create($validated);
-        return back()->with('success', 'Sekolah berhasil ditambahkan.');
+        DB::transaction(function () use ($validated) {
+            $school = School::create([
+                'name' => $validated['name'],
+                'address' => $validated['address'] ?? null,
+                'pic_name' => $validated['pic_name'] ?? null,
+            ]);
+
+            if (!empty($validated['class_names'])) {
+                $classNames = array_filter(array_map('trim', preg_split('/[\n,]+/', $validated['class_names'])));
+                foreach ($classNames as $className) {
+                    if (empty($className)) continue;
+                    
+                    $class = $school->classes()->create([
+                        'name' => $className
+                    ]);
+
+                    if (!empty($validated['program_ids'])) {
+                        $class->programs()->sync($validated['program_ids']);
+                    }
+                }
+            }
+        });
+
+        return back()->with('success', 'Sekolah berhasil ditambahkan beserta kelas dan programnya.');
     }
 
     public function update(Request $request, School $school)
@@ -63,7 +99,19 @@ class SchoolController extends Controller
         }
 
         $school->delete();
-        return back()->with('success', 'Sekolah berhasil dihapus.');
+        return redirect()->route('admin.schools.index')->with('success', 'Sekolah berhasil dihapus.');
+    }
+
+    public function show(School $school)
+    {
+        $this->ensurePermission('schools.view');
+        
+        $school->load(['classes.programs', 'classes.students', 'classes.coachAssignments.coach']);
+        
+        // Extract unique programs from classes to show at school level
+        $programs = $school->classes->flatMap->programs->unique('id')->values();
+
+        return view('admin.master.school_show', compact('school', 'programs'));
     }
 
     private function ensurePermission(string $permission): void

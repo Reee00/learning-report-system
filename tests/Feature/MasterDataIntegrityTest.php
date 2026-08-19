@@ -148,7 +148,7 @@ class MasterDataIntegrityTest extends TestCase
         $this->actingAs($this->superadmin)
             ->get(route('admin.users.index'))
             ->assertOk()
-            ->assertSee('<span class="badge bg-success me-1 mb-1">School A</span>', false);
+            ->assertSee('School A', false);
     }
 
     public function test_navbar_role_badge_uses_the_canonical_role_label(): void

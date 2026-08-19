@@ -41,7 +41,7 @@ learning-report-system/
 
 ```
 Models/
-├── User.php              # User model (admin, coach, school_pic)
+├── User.php              # User model (superadmin, relation, coach, dll. Termasuk teacher_school & finance)
 ├── School.php            # School/Sekolah model
 ├── SchoolClass.php       # Class/Kelas model (tabel: classes)
 ├── Student.php           # Student/Siswa model

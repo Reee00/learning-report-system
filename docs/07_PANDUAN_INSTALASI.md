@@ -3,7 +3,7 @@
 ## 1. Prerequisites (Persyaratan)
 
 ### Untuk Local Development
-- **PHP**: 8.2 atau lebih tinggi (8.3 recommended)
+- **PHP**: 8.4
 - **Composer**: Latest version (untuk manage PHP dependencies)
 - **Node.js & NPM**: Terbaru (untuk manage JavaScript dependencies)
 - **Database**: 

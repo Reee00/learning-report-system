@@ -49,6 +49,23 @@
                     </span>
                 </div>
 
+                <div class="card-body border-bottom bg-light p-3">
+                    <form action="{{ route('students.show', $class) }}" method="GET" class="mb-0">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0 text-muted">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" name="search" class="form-control border-start-0 ps-0" placeholder="Cari nama siswa..." value="{{ request('search') }}">
+                            @if(request('search'))
+                                <a href="{{ route('students.show', $class) }}" class="btn btn-outline-secondary" title="Reset Search">
+                                    <i class="bi bi-x-lg"></i>
+                                </a>
+                            @endif
+                            <button type="submit" class="btn btn-primary px-3 fw-medium">Search</button>
+                        </div>
+                    </form>
+                </div>
+
                 <div class="card-body p-0">
                     @if($students->isEmpty())
                         <div class="text-center text-muted py-5">
@@ -76,12 +93,9 @@
                                     <td>{{ $student->name }}</td>
                                     @if($canDeleteStudents)
                                         <td>
-                                            <form method="POST"
-                                                  action="{{ route('students.destroy', [$class, $student]) }}"
-                                                  onsubmit="return confirm('Hapus siswa {{ $student->name }}?')">
-                                                @csrf @method('DELETE')
-                                                <button class="btn btn-sm btn-outline-danger">Hapus</button>
-                                            </form>
+                                            <button type="button" onclick="confirmAction('{{ route('students.destroy', [$class, $student]) }}', 'Apakah Anda yakin ingin menghapus siswa {{ addslashes($student->name) }} dari kelas ini?')" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash"></i> Hapus
+                                            </button>
                                         </td>
                                     @endif
                                 </tr>

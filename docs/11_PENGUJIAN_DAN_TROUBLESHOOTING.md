@@ -1,62 +1,65 @@
 # Dokumen 11 - Panduan Pengujian & Troubleshooting
 
+**Terakhir diperbarui:** Sesuai dengan status root project LRS terbaru.
+
 ## 1. Dokumentasi Pengujian (Testing Documentation)
 
-### 1.1. Pengujian Otomatis (Automated Testing)
-Proyek ini mengadopsi standar pengujian dari kerangka kerja Laravel (PHPUnit/Pest). Konfigurasi tes terdapat pada file `phpunit.xml` dan skrip yang dapat dijalankan berada di folder `tests/`.
+### 1.1. Pengujian Integritas Data Master
+Proyek ini mengadopsi standar pengujian integritas struktural yang sangat ketat menggunakan *pest/phpunit*. Audit integritas dijalankan secara berkala pada Master Data:
 *   **Perintah untuk menjalankan test:**
     ```bash
     php artisan test
     ```
-    atau menggunakan spesifik filter:
-    ```bash
-    php artisan test --filter ReportControllerTest
-    ```
+*   **Fokus Uji Utama (MasterDataIntegrityTest):**
+    Sistem mengecek 16 parameter audit (termasuk ketiadaan orphan data di `classes`, `students`, kesesuaian nilai enum `users.role`, kewajiban plotting sekolah untuk role tertentu, dan tidak adanya *submitted report* dengan jumlah presensi 0).
 
 ### 1.2. Pengujian Kotak Hitam (Black Box Testing)
-Skenario penting yang harus diuji secara manual melalui UI:
-1.  **Pengujian Autentikasi:**
-    *   Login menggunakan kredensial salah (harus gagal).
-    *   Login sebagai `coach` dan mencoba mengakses URL `/admin/dashboard` (harus tertolak oleh middleware `role:admin`).
-2.  **Pengujian CRUD Master Data:**
-    *   Menambah Sekolah dan memastikan PIC terkait dapat melihat data sekolah tersebut.
-    *   Melakukan import Excel daftar siswa (uji format benar dan format salah/ekstensi salah).
-3.  **Pengujian Alur Laporan:**
-    *   _Coach_ membuat laporan baru dan mengunggah gambar/video. Pastikan aset masuk ke Cloudinary jika dikonfigurasi, atau tersimpan di `storage/app/public` secara lokal.
-    *   Pastikan status awal laporan adalah `pending`.
-    *   _Admin_ membuka laporan dan menekan `Reject`. Pastikan status berubah dan _Coach_ menerima notifikasi / melihat status ditolak.
-4.  **Pengujian API Ajax:**
-    *   Akses `/api/classes/{id}/students` menggunakan REST Client (seperti Postman) dengan menyertakan *cookie session*. Pastikan JSON berisi id dan nama siswa.
+Skenario krusial yang diwajibkan untuk diuji manual (UAT):
+1.  **Pengujian Autentikasi & Routing:**
+    *   Login menggunakan kredensial salah (harus ditolak).
+    *   Login dengan tiap role (terdapat 7 role) dan amati lokasi _redirect_ otomatis. Pastikan SuperAdmin menuju `/admin/dashboard`, sedangkan Teacher School menuju `/attendance`.
+    *   Uji coba penerobosan akses (seperti Coach mengetik manual rute `/admin/schools`). Harus terblokir HTTP 403 Forbidden berkat `AuthorizationService`.
+2.  **Pengujian CRUD & Isolasi Data:**
+    *   Buat sekolah baru, tambahkan kelas, masukkan siswa (via form manual dan form import *Fast-Excel*).
+    *   Buka dashboard PIC/Teacher School. Pastikan mereka **tidak bisa** melihat data laporan atau presensi dari sekolah lain di tabel mereka (Data Isolation).
+3.  **Pengujian Alur Pelaporan:**
+    *   Buka akun Coach. Pastikan daftar kelas yang muncul di form laporan hanya kelas yang ditugaskan (*assigned*) kepadanya.
+    *   Simpan laporan. Uji fungsionalitas unggah foto Cloudinary. Pastikan baris data masuk ke 3 tabel (`reports`, `report_media`, `report_attendances`).
+    *   Buka akun Relation/Admin. Lakukan `Reject` pada laporan.
+    *   Kembali ke akun Coach, pastikan Coach kini dapat melakukan *Edit Laporan* (sistem membuka kunci edit saat status = `rejected`).
+4.  **Pengujian Presensi & Ekspor:**
+    *   Buka rute `/attendance` dengan role Finance. Pastikan tabel berisi murid-murid.
+    *   Lakukan *Export CSV*. Perhatikan bahwa unduhan harus mengembalikan file dengan MIME CSV yang berjalan menggunakan *StreamedResponse*.
 
 ---
 
 ## 2. Panduan Troubleshooting (Troubleshooting Guide)
 
-Apabila developer atau administrator mengalami kendala, berikut panduan mitigasi masalah berdasarkan konfigurasi _source code_.
+Apabila administrator mengalami kendala lapangan, berikut adalah mitigasi spesifik sesuai konfigurasi _source code_ terbaru.
 
-### 2.1. Kendala Autentikasi & Sesi
-**Gejala:** User sering _logout_ secara tiba-tiba atau tidak bisa login.
+### 2.1. Laporan Tidak Muncul di List Setelah Disubmit (BUG-012)
+**Gejala:** Coach mengaku sudah mengirim laporan, namun admin tidak melihat laporan tersebut di status "Submitted".
 **Analisis:**
-*   Aplikasi menggunakan driver sesi file (dari `.env`: `SESSION_DRIVER=file`). Pastikan *permissions* pada folder `storage/framework/sessions` dapat ditulis (775).
-*   Jika di *deployment* menggunakan *load balancer* tanpa *sticky sessions*, ubah `SESSION_DRIVER` ke `database` atau `redis`. (Sistem sudah memiliki tabel `sessions`).
+*   **Akar Masalah (Data Anomaly):** Dulu, jika Cloudinary gagal mengembalikan URL setelah tabel utama di-`insert`, aplikasi mati sebelum baris presensi dibuat. Hasilnya: Laporan "Submitted" dengan 0 baris presensi.
+*   **Solusi:** Sejak pembaruan terbaru, controller telah dibungkus `DB::transaction()`. Namun, jika data anomalinya berasal dari masa lampau, gunakan UI/Database untuk mereset status ke `draft` atau memperbaikinya. Audit test (Aturan #16) akan mendeteksi baris rusak ini.
 
-### 2.2. Error Upload File / Gambar Tidak Muncul
-**Gejala:** Laporan gagal disimpan saat ada lampiran gambar, atau gambar rusak (_broken image_).
+### 2.2. Error Foreign Key Constraint Saat Hapus Sekolah/Kelas
+**Gejala:** Admin menekan hapus sekolah, tapi muncul *SQLSTATE[23000] Integrity constraint violation* (HTTP 500).
 **Analisis:**
-*   Jika menggunakan sistem lokal, jalankan perintah `php artisan storage:link`.
-*   Jika menggunakan **Cloudinary**, pastikan kredensial di `.env` sudah benar:
-    *   `CLOUDINARY_CLOUD_NAME`
-    *   `CLOUDINARY_API_KEY`
-    *   `CLOUDINARY_API_SECRET`
-*   Pastikan batas ukuran _upload_ di konfigurasi PHP (`upload_max_filesize` dan `post_max_size`) di `php.ini` atau `Dockerfile` sudah memadai.
+*   **Kondisi Sistem:** Tabel `reports` menolak *Cascade Delete* secara sengaja (`NO ACTION`). Laporan dianggap sebagai riwayat historis mutlak.
+*   **Solusi Normal:** Sistem sudah diperbarui untuk memberikan peringatan HTTP 422 atau pesan kesalahan (*"Sekolah tidak bisa dihapus karena masih memiliki laporan"*). Jika masih menjumpai HTTP 500, pastikan controller (seperti `SchoolController@destroy`) memanggil validasi `if ($school->reports()->exists())`. Solusinya adalah menghapus laporannya terlebih dahulu, atau biarkan sekolah tersebut (*do not delete*).
 
-### 2.3. Masalah Import Excel
-**Gejala:** Class `FastExcel` tidak ditemukan atau import gagal dengan pesan *Allowed memory size exhausted*.
+### 2.3. Gambar Cloudinary Tidak Terhapus (MEDIA-001)
+**Gejala:** Saat menghapus sebuah laporan, foto di penyimpanan Cloudinary tidak hilang dan memakan *quota*.
 **Analisis:**
-*   Pastikan dependensi telah di-install menggunakan `composer install`.
-*   Jika file excel berukuran terlalu masif, *Fast-Excel* membutuhkan PHP dengan *memory_limit* yang memadai.
+*   Tabel `report_media` menyimpan *url*, tetapi tidak memiliki kolom `cloudinary_public_id`. Fungsi hapus tidak memanggil API pemusnahan Cloudinary. Ini memang desain keterbatasan saat ini (sebagai ISSUE-015). Media tersebut terhitung *Orphan*.
 
-### 2.4. Database SQL Error (Constraint Violation)
-**Gejala:** Terjadi "Foreign key constraint failed" saat menghapus kelas atau sekolah.
+### 2.4. Masalah Ekspor CSV Memori Penuh
+**Gejala:** Halaman `/attendance/export` menampilkan layar putih atau Error "Allowed memory size of X bytes exhausted".
 **Analisis:**
-*   Sistem menerapkan _foreign keys_ (contoh: laporan tertaut ke kelas, siswa tertaut ke kelas). Pastikan _soft deletes_ diaktifkan atau data anak telah ditangani (misal: di-set `onDelete('cascade')` pada migration).
+*   Pola export *chunkById* telah dimplementasikan. Jika masalah ini tetap terjadi, pastikan modul *fast-excel* digunakan sesuai instruksi (menggunakan generator/yield) atau metode Eloquent `chunk()` diterapkan benar. (Menaikkan memory_limit bukan solusi jangka panjang).
+
+### 2.5. Kendala Impor Excel (Nama Siswa Tidak Masuk)
+**Gejala:** Proses berhasil, namun jumlah terbaca 0 siswa.
+**Analisis:**
+*   Template Excel menuntut kepala kolom (header baris pertama) bernama eksplisit `nama_siswa` atau `name` atau `Nama Siswa`. Jika penamaannya melenceng (misal: "NAMA LENGKAP ANAK"), library tidak akan membaca baris tersebut. Solusi: Minta pengguna mengunduh template (`/students/template`).

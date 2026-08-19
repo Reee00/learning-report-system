@@ -236,16 +236,16 @@ sudo apt update && sudo apt upgrade -y
 
 # Install PHP & extensions
 sudo apt install -y \
-  php8.3 \
-  php8.3-cli \
-  php8.3-fpm \
-  php8.3-mysql \
-  php8.3-pgsql \
-  php8.3-gd \
-  php8.3-xml \
-  php8.3-mbstring \
-  php8.3-zip \
-  php8.3-curl
+  php8.4 \
+  php8.4-cli \
+  php8.4-fpm \
+  php8.4-mysql \
+  php8.4-pgsql \
+  php8.4-gd \
+  php8.4-xml \
+  php8.4-mbstring \
+  php8.4-zip \
+  php8.4-curl
 
 # Install MySQL / PostgreSQL
 sudo apt install -y mysql-server
@@ -314,7 +314,7 @@ server {
 
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
     }
 
     location ~ /\.ht {
@@ -457,7 +457,7 @@ cd /var/www/learning-report-system
 git log --oneline  # Find previous commit
 git checkout [commit-hash]
 sudo -u www-data php artisan migrate:rollback
-sudo systemctl restart php8.3-fpm
+sudo systemctl restart php8.4-fpm
 sudo systemctl reload nginx
 ```
 
@@ -506,14 +506,14 @@ netstat -an | grep ESTABLISHED | wc -l
 sudo apt update && sudo apt upgrade -y
 
 # Update PHP extensions
-sudo apt install -y --only-upgrade php8.3-*
+sudo apt install -y --only-upgrade php8.4-*
 
 # Update Composer packages
 cd /var/www/learning-report-system
 sudo -u www-data composer update --no-dev
 
 # Restart services
-sudo systemctl restart php8.3-fpm
+sudo systemctl restart php8.4-fpm
 sudo systemctl reload nginx
 ```
 
@@ -559,7 +559,7 @@ SESSION_SECURE_COOKIES=true
 
 **Solution**:
 ```bash
-sudo systemctl restart php8.3-fpm
+sudo systemctl restart php8.4-fpm
 sudo systemctl reload nginx
 tail -f /var/log/nginx/error.log
 ```

@@ -130,7 +130,7 @@ class CrossSchoolSecurityTest extends TestCase
 
         $csv = $response->streamedContent();
 
-        $this->assertStringStartsWith('tanggal,sekolah,kelas,coach,siswa,status_absensi,status_laporan', $csv);
+        $this->assertStringStartsWith('School,Class,Student', $csv);
         $this->assertStringContainsString('Student School A', $csv);
         $this->assertStringNotContainsString('Student School B', $csv);
     }

@@ -45,7 +45,14 @@ class AttendanceController extends Controller
         $filters = $this->validatedFilters($request);
         $query = $this->attendanceScope->query($user, $filters);
 
-        return $this->attendanceExport->download(
+        if ($request->query('format') === 'pdf') {
+            return $this->attendanceExport->downloadPdf(
+                $query,
+                'attendance-'.now()->format('Ymd-His').'.pdf'
+            );
+        }
+
+        return $this->attendanceExport->downloadCsv(
             $query,
             'attendance-'.now()->format('Ymd-His').'.csv'
         );

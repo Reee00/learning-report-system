@@ -1,8 +1,12 @@
-# 📡 API Documentation
+# 📡 API Documentation & Web Routes
+
+**Terakhir diperbarui:** Sesuai dengan status root project LRS terbaru.
 
 ## 1. Overview API
 
-Sistem ini menggunakan **web routing** dengan Blade templates. Tidak ada REST API pure, namun terdapat AJAX endpoint untuk keperluan interaktif.
+Sistem ini tidak diekspos sebagai antarmuka REST API murni, melainkan menggunakan rute *web server-side rendering* (Blade) yang dilengkapi dengan beberapa layanan *endpoint asinkron* (seperti AJAX load student). 
+
+Semua *endpoint* menggunakan sesi Laravel (Cookie `laravel_session`) dengan perlindungan CSRF.
 
 **Base URL**: 
 ```
@@ -12,833 +16,114 @@ Production: https://[domain]
 
 ---
 
-## 2. Authentication
+## 2. Authentication Flow
 
-Semua endpoint memerlukan user login (session-based).
+### A. GET `/login`
+**Deskripsi**: Tampilkan form login (atau *redirect* langsung jika sudah login).
+**Auth**: None
+**Status**: `200 OK` atau `302 Found`
 
-```
-Status: 401 Unauthorized
-Response: Redirect ke /login
-```
-
----
-
-## 3. List Semua Endpoints
-
-### A. Authentication Endpoints
-
-#### GET /login
-**Deskripsi**: Tampilkan form login
-
-**Request**: 
-- Method: `GET`
-- Auth: None
-
+### B. POST `/login`
+**Deskripsi**: Proses pengecekan `email` dan `password`.
+**Auth**: None
 **Response**:
-```html
-<!-- Form login dengan email & password -->
-```
+- Sukses (302): *Redirect* ke dashboard yang relevan dengan 7 *role* yang ada (misal: `/admin/schools`, `/attendance`, dll.).
+- Gagal (302): Kembali ke `/login` dengan validasi *errors*.
 
-**Status Code**: `200 OK`
-
----
-
-#### POST /login
-**Deskripsi**: Proses login
-
-**Request**:
-```
-Method: POST
-Headers: Content-Type: application/x-www-form-urlencoded
-Body:
-  email: string (required, email format)
-  password: string (required)
-  _token: string (CSRF token, auto)
-```
-
-**Response - Success**:
-```
-Status: 302 Found (Redirect)
-Location: 
-  - /admin/dashboard (jika admin)
-  - /coach/reports (jika coach)
-  - /pic/dashboard (jika school_pic)
-```
-
-**Response - Error**:
-```
-Status: 302 Found (Back)
-Flash: 
-  - withErrors(['email' => 'Email atau password salah.'])
-  - onlyInput('email')
-```
-
-**Example**:
-```bash
-curl -X POST http://localhost:8000/login \
-  -d "email=coach@example.com&password=password123&_token=..." \
-  -c cookies.txt
-```
+### C. POST `/logout`
+**Deskripsi**: Invalidasi sesi dan membuang token cookie.
+**Auth**: Wajib (Session)
 
 ---
 
-#### POST /logout
-**Deskripsi**: Logout (keluar dari session)
+## 3. Web Endpoints Berdasarkan Capability
 
-**Request**:
-```
-Method: POST
-Auth: Required (session)
-Headers: Content-Type: application/x-www-form-urlencoded
-Body:
-  _token: string (CSRF token)
-```
+Sistem tidak mengelompokkan API berdasarkan prefix "/admin" atau "/coach" semata, melainkan berdasarkan kapabilitas (peran) masing-masing *user*. 
 
-**Response**:
-```
-Status: 302 Found (Redirect)
-Location: /login
-Result: Session invalidated, cookies cleared
-```
+### A. Modul Users & Master Data (Manage Users, Schools, Programs, Classes)
+**Capability Required:** `users.manage`, `schools.*`, dll. (Utamanya SuperAdmin & Relation)
 
----
+- **GET /admin/users**: Menampilkan daftar *user* dengan filter dan paginasi.
+- **POST /admin/users**: Membuat user baru. Mewajibkan array `school_ids` untuk role berbasis *school-scoped*.
+- **PUT /admin/users/{user}**: Memperbarui metadata dan role user.
+- **PATCH /admin/users/{user}/reset-password**: Mengembalikan password user ke kondisi *default* (biasanya diinput manual oleh admin).
+- **GET /admin/schools**, **POST /admin/schools**, **PUT**, **DELETE**: Manajemen Entitas Sekolah Mitra.
+- **GET /admin/programs**, **POST /admin/programs**, **PUT**, **DELETE**: Manajemen Entitas Program Pendidikan.
+- **GET /admin/classes**, **POST**, **PUT**, **DELETE**: Manajemen Entitas Kelas beserta *sync* program pendidikannya.
 
-### B. Admin Endpoints
+### B. Modul Siswa (Student Management)
+**Capability Required:** `students.manage`
 
-#### GET /admin/dashboard
-**Deskripsi**: Dashboard admin dengan statistik
+- **GET /classes/{class}/students**: Memuat halaman pengelolaan siswa untuk kelas spesifik.
+- **POST /classes/{class}/students**: Menambahkan satu murid baru ke dalam kelas.
+- **POST /classes/{class}/students/import**: Menerima unggahan file Excel/CSV (Multipart FormData) untuk proses bulk-insert. Sistem mengekstrak kolom `nama_siswa` atau `name`.
+- **GET /students/template**: Endpoint untuk mengunduh berkas `.xlsx` kosong (template format struktur bulk-import).
+- **DELETE /classes/{class}/students/{student}**: Menghapus baris murid.
 
-**Auth**: `role:admin`
+### C. Modul Coaches & Assignment
+**Capability Required:** `coaches.assign`, `coaches.view`
 
-**Response Body**:
-```html
-<!-- Dashboard dengan:
-  - total_reports
-  - submitted_reports
-  - approved_reports
-  - rejected_reports
-  - total_schools
-  - total_coaches
-  - pending reports (5 terbaru)
--->
-```
+- **GET /admin/coaches**: Menampilkan daftar akun ber-role *Coach*.
+- **GET /admin/coaches/{coach}**: Tampilan detil seorang Coach dan riwayat mengajar.
+- **POST /admin/coaches/{coach}/assign**: Memasukkan `class_id` untuk ditugaskan.
+- **DELETE /admin/coaches/{coach}/assignments/{assignment}**: Membatalkan penugasan kelas.
 
-**Status Code**: `200 OK`
+### D. Modul Learning Reports (Drafting & Reviewing)
+**Bagi Pelapor (Capability: `reports.create` - Coach):**
+- **GET /coach/reports**: Daftar seluruh laporan milik coach yang *login*.
+- **GET /coach/reports/create**: Tampilan form *wizard* pelaporan.
+- **POST /coach/reports**: Proses unggah FormData (termasuk *array file foto/video*). Menulis ke Cloudinary dan mempopulasi ke tabel terkait (termasuk `report_attendances`).
+- **GET /coach/reports/{report}/edit**: Menampilkan form dengan *state* sebelumnya, memungkinkan Coach untuk mengunggah ulang revisi jika laporannya di-*reject*.
+- **PUT /coach/reports/{report}**: Memperbarui entitas yang sudah disubmit. (Hanya diizinkan bila status saat ini adalah `draft` atau `rejected`).
 
----
+**Bagi Reviewer (Capability: `reports.review` - Admin/Relation):**
+- **GET /admin/reports**: *Dashboard* pengecekan silang bagi seluruh laporan dengan status *submitted* di seluruh sekolah.
+- **GET /admin/reports/{report}**: Tampilan penuh dokumen *report* bersama barisan absen.
+- **PATCH /admin/reports/{report}/approve**: Mengubah status laporan menjadi `approved`.
+- **PATCH /admin/reports/{report}/reject**: Mengubah status ke `rejected`, mewajibkan adanya string di kolom `admin_notes`.
 
-#### GET /admin/users
-**Deskripsi**: List semua user (Admin, Coach, School PIC)
+### E. Modul Khusus Dashboard Laporan
+- **GET /pic/dashboard**: Tampilan dashboard spesifik `school_pic` atau `teacher_school`. Hanya memuat *Query builder* dengan tambahan kondisi `.where('status', 'approved')` dan *school_scoped()*.
 
-**Auth**: `role:admin`
+### F. Modul Attendance (Presensi)
+**Capability Required:** `attendance.view`
 
-**Query Parameters**:
-```
-role=admin|coach|school_pic (optional)
-search=string (optional, search by name/email)
-page=number (optional, default 1)
-```
-
-**Response**:
-```html
-<!-- Tabel user dengan:
-  - name
-  - email
-  - role
-  - school (jika school_pic)
-  - Actions: Edit, Reset Password, Delete
--->
-```
-
-**Status Code**: `200 OK`
+- **GET /attendance**: Menampilkan tabel silang untuk absensi murid dari banyak laporan. Secara otomatis terisolasi berdasarkan array hak milik `school_id` sang pembuka *route*.
+- **GET /attendance/export**: Sebuah endpoint khusus yang mengirim `StreamedResponse`. Mengonversi data Eloquent Chunking langsung ke berkas CSV yang diunduh pada sisi klien untuk menghindari *memory exhaustion*.
 
 ---
 
-#### POST /admin/users
-**Deskripsi**: Tambah user baru
+## 4. RESTful AJAX API
 
-**Auth**: `role:admin`
+Selain metode *rendering* tradisional, ada satu _endpoint_ yang khusus difungsikan untuk injeksi JavaScript asinkron.
 
-**Request Body**:
-```
-name: string (required, max 100)
-email: string (required, email, unique)
-password: string (required, min 6, confirmed)
-password_confirmation: string (required)
-role: string (required, enum: admin|coach|school_pic)
-school_id: integer (required jika role=school_pic, optional otherwise)
-_token: string (CSRF token)
-```
-
-**Response - Success**:
-```
-Status: 302 Found (Redirect back)
-Flash: 'success' => 'Akun berhasil dibuat!'
-```
-
-**Response - Error**:
-```
-Status: 302 Found (Back)
-Flash: Errors + Input
-```
-
----
-
-#### PUT /admin/users/{user}
-**Deskripsi**: Update data user
-
-**Auth**: `role:admin`
-
-**URL Parameters**:
-```
-user: integer (user ID)
-```
-
-**Request Body**:
-```
-name: string (required, max 100)
-email: string (required, email, unique except current)
-role: string (required, enum: admin|coach|school_pic)
-school_id: integer (required jika role=school_pic)
-_method: PUT
-_token: string (CSRF token)
-```
-
-**Response**:
-```
-Status: 302 Found (Redirect back)
-Flash: 'success' => 'Akun berhasil diperbarui!'
-```
-
----
-
-#### PATCH /admin/users/{user}/reset-password
-**Deskripsi**: Reset password user
-
-**Auth**: `role:admin`
-
-**Request Body**:
-```
-password: string (required, min 6)
-password_confirmation: string (required)
-_token: string (CSRF token)
-```
-
-**Response**:
-```
-Status: 302 Found (Redirect back)
-Flash: 'success' => 'Password akun [name] berhasil direset!'
-```
-
----
-
-#### DELETE /admin/users/{user}
-**Deskripsi**: Hapus user
-
-**Auth**: `role:admin`
-
-**Response**:
-```
-Status: 302 Found (Redirect back)
-Flash: 'success' => 'Akun berhasil dihapus.'
-Note: Tidak bisa hapus akun sendiri
-```
-
----
-
-#### GET /admin/reports
-**Deskripsi**: List laporan untuk review
-
-**Auth**: `role:admin`
-
-**Query Parameters**:
-```
-school_id: integer (optional)
-status: string (optional, enum: draft|submitted|approved|rejected)
-date_from: date (optional, YYYY-MM-DD)
-date_to: date (optional, YYYY-MM-DD)
-page: number (optional)
-```
-
-**Response**:
-```html
-<!-- Tabel laporan dengan filters -->
-```
-
----
-
-#### GET /admin/reports/{report}
-**Deskripsi**: View detail laporan
-
-**Auth**: `role:admin`
-
-**URL Parameters**:
-```
-report: integer (report ID)
-```
-
-**Response**:
-```html
-<!-- Detail laporan dengan:
-  - Report data (coach, class, school, etc)
-  - Attendance list
-  - Media (photos + videos)
-  - Approval status
--->
-```
-
----
-
-#### PATCH /admin/reports/{report}/approve
-**Deskripsi**: Approve laporan
-
-**Auth**: `role:admin`
-
-**Response**:
-```
-Status: 302 Found (Redirect back)
-Flash: 'success' => 'Laporan #[id] berhasil disetujui.'
-Updates:
-  - status = 'approved'
-  - approved_by = admin ID
-  - approved_at = now()
-```
-
----
-
-#### PATCH /admin/reports/{report}/reject
-**Deskripsi**: Reject laporan
-
-**Auth**: `role:admin`
-
-**Request Body**:
-```
-admin_notes: string (required, max 500)
-_token: string
-```
-
-**Response**:
-```
-Status: 302 Found (Redirect back)
-Flash: 'success' => 'Laporan #[id] ditolak dengan catatan.'
-Updates:
-  - status = 'rejected'
-  - admin_notes = input
-```
-
----
-
-#### GET /admin/schools
-**Deskripsi**: List sekolah
-
-**Auth**: `role:admin`
-
-**Response**:
-```html
-<!-- Tabel sekolah dengan CRUD actions -->
-```
-
----
-
-#### POST /admin/schools
-**Deskripsi**: Tambah sekolah
-
-**Request Body**:
-```
-name: string (required, max 150)
-address: string (optional)
-pic_name: string (optional, max 100)
-_token: string
-```
-
----
-
-#### PUT /admin/schools/{school}
-**Deskripsi**: Update sekolah
-
----
-
-#### DELETE /admin/schools/{school}
-**Deskripsi**: Hapus sekolah
-
----
-
-#### GET /admin/classes
-**Deskripsi**: List kelas
-
-**Auth**: `role:admin`
-
----
-
-#### POST /admin/classes
-**Deskripsi**: Tambah kelas
-
-**Request Body**:
-```
-school_id: integer (required)
-name: string (required, max 100)
-_token: string
-```
-
----
-
-#### DELETE /admin/classes/{class}
-**Deskripsi**: Hapus kelas
-
----
-
-#### GET /admin/coaches
-**Deskripsi**: List semua coach dengan assignment kelas
-
-**Auth**: `role:admin`
-
----
-
-#### GET /admin/coaches/{coach}
-**Deskripsi**: Detail coach + available classes untuk assign
-
-**Auth**: `role:admin`
-
-**URL Parameters**:
-```
-coach: integer (user ID, harus role=coach)
-```
-
-**Response**:
-```html
-<!-- Coach data:
-  - Current assignments (dengan school)
-  - Available classes (grouped by school)
--->
-```
-
----
-
-#### POST /admin/coaches/{coach}/assign
-**Deskripsi**: Assign coach ke kelas
-
-**Auth**: `role:admin`
-
-**Request Body**:
-```
-class_id: integer (required, exists in classes)
-_token: string
-```
-
-**Response**:
-```
-Status: 302 Found (Redirect back)
-Flash: 'success' => 'Kelas berhasil di-assign ke coach!'
-Note: Tidak boleh duplicate assignment
-```
-
----
-
-#### DELETE /admin/coaches/{coach}/assignments/{assignment}
-**Deskripsi**: Hapus assignment coach dari kelas
-
-**Auth**: `role:admin`
-
----
-
-### C. Coach Endpoints
-
-#### GET /coach/reports
-**Deskripsi**: List laporan coach (milik coach yang login)
-
-**Auth**: `role:coach`
-
-**Query Parameters**:
-```
-page: number (optional)
-```
-
-**Response**:
-```html
-<!-- Tabel laporan milik coach dengan status:
-  - draft
-  - submitted
-  - approved
-  - rejected
-  Actions: Edit (jika draft/rejected), View
--->
-```
-
----
-
-#### GET /coach/reports/create
-**Deskripsi**: Tampilkan form buat laporan baru
-
-**Auth**: `role:coach`
-
-**Response**:
-```html
-<!-- Form dengan fields:
-  - class_id (select, hanya kelas yang di-assign)
-  - report_date (date picker)
-  - lesson_material (textarea)
-  - activity_summary (textarea)
-  - notes (textarea, optional)
-  - photos (file input, max 10)
-  - videos (file input, max 3)
-  - attendance (checkboxes per student)
--->
-```
-
----
-
-#### POST /coach/reports
-**Deskripsi**: Submit laporan baru
-
-**Auth**: `role:coach`
-
-**Request Body** (multipart/form-data):
-```
-class_id: integer (required)
-report_date: date (required)
-lesson_material: string (required, max 1000)
-activity_summary: string (required, max 2000)
-notes: string (optional, max 1000)
-photos[]: file (optional, image only, max 10)
-videos[]: file (optional, video only, max 3)
-attendance[student_id]: enum (present|absent|sick|permission)
-_token: string
-```
-
-**Video Formats Accepted**:
-```
-video/mp4
-video/mpeg
-video/quicktime (mov)
-video/x-msvideo (avi)
-video/x-matroska (mkv)
-video/webm
-video/avi
-```
-
-**Response - Success**:
-```
-Status: 302 Found (Redirect)
-Location: /coach/reports
-Flash: 'success' => 'Laporan berhasil dikirim!'
-Side effects:
-  - CREATE reports row (status: submitted)
-  - CREATE report_media rows (for each photo/video)
-  - CREATE report_attendance rows (for each student)
-  - Upload files to Cloudinary
-```
-
-**Response - Error**:
-```
-Status: 302 Found (Back)
-Flash: Validation errors
-```
-
----
-
-#### GET /coach/reports/{report}/edit
-**Deskripsi**: Tampilkan form edit laporan
-
-**Auth**: `role:coach`
-
-**Authorization Check**:
-```
-- Report must belong to coach (coach_id == auth()->id())
-- Report status must be 'draft' or 'rejected'
-```
-
-**Response**:
-```html
-<!-- Form edit dengan pre-filled data + media management -->
-```
-
----
-
-#### PUT /coach/reports/{report}
-**Deskripsi**: Update laporan
-
-**Auth**: `role:coach`
-
-**Authorization**:
-```
-- Coach must own report
-- Status must be draft or rejected
-```
-
-**Request Body** (multipart/form-data):
-```
-report_date: date (required)
-lesson_material: string (required, max 1000)
-activity_summary: string (required, max 2000)
-notes: string (optional)
-photos[]: file (optional, new photos)
-videos[]: file (optional, new videos)
-delete_media[]: integer (optional, media IDs to delete)
-attendance[student_id]: enum
-_token: string
-_method: PUT
-```
-
-**Response**:
-```
-Status: 302 Found (Redirect back)
-Flash: 'success' => 'Laporan berhasil diperbarui!'
-Updates:
-  - Report data
-  - Media (add new, delete selected)
-  - Attendance
-  - status reset to 'submitted'
-  - admin_notes cleared
-```
-
----
-
-### D. Student Management Endpoints
-
-#### GET /classes/{class}/students
-**Deskripsi**: List siswa di kelas
-
-**Auth**: Required
-
-**URL Parameters**:
-```
-class: integer (class ID)
-```
-
-**Response**:
-```html
-<!-- List siswa dengan actions:
-  - Manual add form
-  - Import Excel form
-  - Delete button per siswa
--->
-```
-
----
-
-#### POST /classes/{class}/students
-**Deskripsi**: Tambah siswa manual
-
-**Auth**: Required
-
-**Request Body**:
-```
-name: string (required, max 100, unique di kelas)
-_token: string
-```
-
----
-
-#### POST /classes/{class}/students/import
-**Deskripsi**: Import siswa dari Excel/CSV
-
-**Auth**: Required
-
-**Request Body** (multipart/form-data):
-```
-file: file (required, mimes: xlsx|xls|csv, max 50MB)
-_token: string
-
-Column headers yang dicari:
-  - 'nama_siswa' atau 'name' atau 'Nama Siswa'
-```
-
-**Response**:
-```
-Status: 302 Found (Back)
-Flash: 'success' => '{imported} siswa berhasil diimport. {skipped} dilewati.'
-```
-
----
-
-#### DELETE /classes/{class}/students/{student}
-**Deskripsi**: Hapus siswa
-
-**Auth**: Required
-
----
-
-#### GET /students/template
-**Deskripsi**: Download template Excel untuk import
-
-**Auth**: Required
-
-**Response**:
-```
-Status: 200 OK
-Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-Content: File Excel dengan header 'nama_siswa'
-```
-
----
-
-### E. School PIC Endpoints
-
-#### GET /pic/dashboard
-**Deskripsi**: Dashboard PIC dengan laporan tersetujui
-
-**Auth**: `role:school_pic`
-
-**Query Parameters**:
-```
-class_id: integer (optional)
-date_from: date (optional)
-date_to: date (optional)
-page: number (optional)
-```
-
-**Response**:
-```html
-<!-- List approved reports dari sekolah PIC
-  - Total reports
-  - Reports this month
-  - Filters
-  - Report list with detail view
--->
-```
-
----
-
-#### GET /pic/reports/{report}
-**Deskripsi**: View detail report (hanya approved, sekolah sendiri)
-
-**Auth**: `role:school_pic`
-
-**Authorization Check**:
-```
-- Report.school_id == auth()->user()->school_id
-- Report.status == 'approved'
-```
-
----
-
-### F. AJAX API Endpoints
-
-#### GET /api/classes/{class}/students
-**Deskripsi**: Get list siswa (JSON, untuk AJAX)
-
-**Auth**: Required (session)
-
-**Response**:
+### GET `/api/classes/{class}/students`
+**Deskripsi**: Mengembalikan format JSON berisi objek siswa (`id` dan `name`) yang tergabung di dalam ID kelas tertentu. Dipakai ketika Coach membuka _dropdown_ Kelas di antarmuka Form Laporan Baru.
+**Auth**: Required (Session)
+**Response `200 OK`**:
 ```json
 [
   {
-    "id": 1,
-    "name": "Siswa A"
+    "id": 105,
+    "name": "Budi Santoso"
   },
   {
-    "id": 2,
-    "name": "Siswa B"
+    "id": 106,
+    "name": "Arif Sudirman"
   }
 ]
-```
-
-**Status Code**: `200 OK`
-
----
-
-## 4. Error Responses
-
-### Validation Error (422)
-```json
-{
-  "message": "The given data was invalid.",
-  "errors": {
-    "email": ["Email sudah terdaftar"],
-    "password": ["Password minimal 6 karakter"]
-  }
-}
-```
-
-### Unauthorized (401)
-```
-Status: 302 Found (Redirect)
-Location: /login
-```
-
-### Forbidden (403)
-```html
-<!-- Error 403 page -->
-Akses tidak diizinkan.
-```
-
-### Not Found (404)
-```html
-<!-- Error 404 page -->
-Halaman tidak ditemukan.
-```
-
-### Server Error (500)
-```html
-<!-- Error 500 page -->
-Terjadi kesalahan pada server.
 ```
 
 ---
 
 ## 5. Status Codes Reference
 
-| Code | Meaning | Usage |
+| Code | Arti | Skenario Sering Muncul |
 |------|---------|-------|
-| 200 | OK | Berhasil get/view |
-| 302 | Found (Redirect) | Redirect setelah create/update |
-| 401 | Unauthorized | User belum login |
-| 403 | Forbidden | User tidak punya akses |
-| 404 | Not Found | Resource tidak ada |
-| 422 | Unprocessable Entity | Validasi error |
-| 500 | Server Error | Error di server |
-
----
-
-## 6. Rate Limiting
-
-**Current**: NOT IMPLEMENTED
-
-**Recommended**:
-- Login attempts: Max 5 attempts per 1 minute
-- File upload: Max 10 uploads per 1 minute
-
----
-
-## 7. CORS
-
-**Status**: NOT APPLICABLE (Session-based, same-origin only)
-
----
-
-## 8. Pagination
-
-Default pagination:
-- Users: 15 per page
-- Laporan: 20 per page
-- Kelas: 20 per page
-- Siswa: 20 per page
-
-Query string maintained saat navigate pages (preserving filters).
-
----
-
-## 9. Testing API dengan cURL
-
-### Login
-```bash
-curl -X POST http://localhost:8000/login \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "email=admin@example.com&password=password&_token=TOKEN" \
-  -c cookies.txt
-```
-
-### Access Protected Route
-```bash
-curl -X GET http://localhost:8000/admin/dashboard \
-  -b cookies.txt
-```
-
-### Create User
-```bash
-curl -X POST http://localhost:8000/admin/users \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -b cookies.txt \
-  -d "name=John&email=john@example.com&password=123456&password_confirmation=123456&role=coach&_token=TOKEN"
-```
-
+| **200** | OK | Merender Blade view atau JSON response sukses. |
+| **302** | Found | Hasil dari form sumbit (Flash Success/Errors) kembali ke tampilan awal. |
+| **401** | Unauthenticated | Membuka route yang dikunci tanpa sesi/token (Redirect login). |
+| **403** | Forbidden | Pengecekan Service AuthorizationService `allows()` bernilai `false`. |
+| **404** | Not Found | Membuka laporan, kelas, atau URL yang sudah tidak ada. |
+| **422** | Unprocessable Entity | Validasi Eloquent meleset (misal: tipe dokumen bukan *image*). |
+| **500** | Server Error | Masalah interupsi database atau Service Pihak Ketiga (seperti Cloudinary API Down). |

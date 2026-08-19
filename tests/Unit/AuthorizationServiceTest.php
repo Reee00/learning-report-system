@@ -25,6 +25,10 @@ class AuthorizationServiceTest extends TestCase
         $this->assertTrue($service->allows($user, 'schools.create'));
         $this->assertTrue($service->allows($user, 'schools.update'));
         $this->assertTrue($service->allows($user, 'schools.delete'));
+        $this->assertTrue($service->allows($user, 'program_classes.update'));
+        $this->assertTrue($service->allows($user, 'program_classes.delete'));
+        $this->assertTrue($service->allows($user, 'programs.update'));
+        $this->assertTrue($service->allows($user, 'programs.delete'));
         $this->assertTrue($service->allows($user, 'attendance.export'));
         $this->assertTrue($service->allows($user, 'reports.view_all'));
         $this->assertTrue($service->allows($user, 'reports.review'));

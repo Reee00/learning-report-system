@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Coach\ReportController as CoachReportController;
+use App\Http\Controllers\Coach\StudentController as CoachStudentController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboard;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\SchoolController;
@@ -63,7 +64,14 @@ Route::middleware(['auth', 'role:coach'])->prefix('coach')->name('coach.')->grou
     Route::put('reports/{report}', [CoachReportController::class, 'update'])
         ->middleware('permission:reports.update')
         ->name('reports.update');
+
+    // Coach: view list of assigned classes and manage their students.
+    // class_id is always resolved from the coach assignment in the backend.
+    Route::get('students', [CoachStudentController::class, 'index'])
+        ->middleware('permission:students.view')
+        ->name('students.index');
 });
+
 
 // ===== RELATION / SUPERADMIN COMPATIBILITY ROUTES =====
 // URL dan route names admin.* dipertahankan; capability authorization dilakukan
@@ -111,6 +119,9 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('schools', [SchoolController::class, 'index'])
         ->middleware('permission:schools.view')
         ->name('schools.index');
+    Route::get('schools/{school}', [SchoolController::class, 'show'])
+        ->middleware('permission:schools.view')
+        ->name('schools.show');
     Route::post('schools', [SchoolController::class, 'store'])
         ->middleware('permission:schools.create')
         ->name('schools.store');
@@ -128,6 +139,9 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::post('classes', [ClassController::class, 'store'])
         ->middleware('permission:program_classes.create')
         ->name('classes.store');
+    Route::put('classes/{class}', [ClassController::class, 'update'])
+        ->middleware('permission:program_classes.update')
+        ->name('classes.update');
     Route::delete('classes/{class}', [ClassController::class, 'destroy'])
         ->middleware('permission:program_classes.delete')
         ->name('classes.destroy');
@@ -139,6 +153,15 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::post('programs', [ProgramController::class, 'store'])
         ->middleware('permission:programs.create')
         ->name('programs.store');
+    Route::get('programs/{program}', [ProgramController::class, 'show'])
+        ->middleware('permission:programs.view')
+        ->name('programs.show');
+    Route::put('programs/{program}', [ProgramController::class, 'update'])
+        ->middleware('permission:programs.update')
+        ->name('programs.update');
+    Route::delete('programs/{program}', [ProgramController::class, 'destroy'])
+        ->middleware('permission:programs.delete')
+        ->name('programs.destroy');
 
     // Coach management and assignment.
     Route::get('coaches', [\App\Http\Controllers\Admin\CoachController::class, 'index'])

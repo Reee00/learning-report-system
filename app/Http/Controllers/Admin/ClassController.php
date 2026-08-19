@@ -14,13 +14,22 @@ class ClassController extends Controller
     {
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $this->ensurePermission('program_classes.view');
 
-        $classes = SchoolClass::with('school')->paginate(20);
+        $query = SchoolClass::with('school');
+
+        if ($search = $request->query('search')) {
+            $query->where('name', 'like', '%' . $search . '%')
+                  ->orWhereHas('school', function ($q) use ($search) {
+                      $q->where('name', 'like', '%' . $search . '%');
+                  });
+        }
+
+        $classes = $query->paginate(20)->withQueryString();
         $schools = School::orderBy('name')->get();
-        return view('admin.master.classes', compact('classes', 'schools'));
+        return view('admin.master.classes', compact('classes', 'schools', 'search'));
     }
 
     public function store(Request $request)
@@ -34,6 +43,19 @@ class ClassController extends Controller
 
         SchoolClass::create($validated);
         return back()->with('success', 'Kelas berhasil ditambahkan.');
+    }
+
+    public function update(Request $request, SchoolClass $class)
+    {
+        $this->ensurePermission('program_classes.update');
+
+        $validated = $request->validate([
+            'school_id' => ['required', 'integer', 'exists:schools,id'],
+            'name' => ['required', 'string', 'max:100'],
+        ]);
+
+        $class->update($validated);
+        return back()->with('success', 'Data kelas berhasil diperbarui.');
     }
 
     public function destroy(SchoolClass $class)

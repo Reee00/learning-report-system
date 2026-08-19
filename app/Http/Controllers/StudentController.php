@@ -11,16 +11,20 @@ use Rap2hpoutre\FastExcel\FastExcel;
 class StudentController extends Controller
 {
     // Halaman detail kelas + daftar siswa
-    public function show(SchoolClass $class)
+    public function show(Request $request, SchoolClass $class)
     {
         $this->authorizeAccess($class, 'students.view');
 
         $class->load('school');
-        $students = Student::where('class_id', $class->id)
-            ->orderBy('name')
-            ->paginate(20);
+        $query = Student::where('class_id', $class->id);
 
-        return view('students.index', compact('class', 'students'));
+        if ($search = $request->query('search')) {
+            $query->where('name', 'like', '%' . $search . '%');
+        }
+
+        $students = $query->orderBy('name')->paginate(20)->withQueryString();
+
+        return view('students.index', compact('class', 'students', 'search'));
     }
 
     // Tambah siswa manual

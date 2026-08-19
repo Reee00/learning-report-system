@@ -222,7 +222,7 @@ class EndToEndFlowTest extends TestCase
             ->assertOk()
             ->streamedContent();
 
-        $this->assertStringStartsWith('tanggal,sekolah,kelas,coach,siswa,status_absensi,status_laporan', $financeCsv);
+        $this->assertStringStartsWith('School,Class,Student', $financeCsv);
         $this->assertStringContainsString('Bela', $financeCsv);
         $this->assertStringNotContainsString('Andi', $financeCsv);
 

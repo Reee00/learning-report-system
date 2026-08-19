@@ -82,6 +82,7 @@ ROLE_RELATION   = 'relation'
 ROLE_SPV_COACH  = 'spv_coach'
 ROLE_COACH      = 'coach'
 ROLE_SCHOOL_PIC = 'school_pic'
+ROLE_TEACHER_SCHOOL = 'teacher_school'
 ROLE_FINANCE    = 'finance'
 ```
 
@@ -310,7 +311,7 @@ if (in_array($validated['role'], User::schoolScopedRoles(), true) && empty($scho
 }
 ```
 
-`User::schoolScopedRoles()` = `[ROLE_SCHOOL_PIC, ROLE_FINANCE]`.
+`User::schoolScopedRoles()` = `[ROLE_SCHOOL_PIC, ROLE_TEACHER_SCHOOL, ROLE_FINANCE]`.
 
 ### 3.12 `sessions`
 
@@ -414,7 +415,7 @@ diketahui saat memelihara data:
 | # | Aturan |
 |---|---|
 | 01–06 | Tidak ada orphan pada `classes`, `students`, `coach_classes`, `reports`, `report_attendances`, `report_media` |
-| 07 | Tidak ada `users.role` di luar 6 role key |
+| 07 | Tidak ada `users.role` di luar 7 role key |
 | 08 | Tidak ada role ter-scope tanpa plotting (`school_user` maupun `school_id`) |
 | 09 | Tidak ada duplikat pada tiga pivot unique |
 | 10 | Tidak ada `reports.status` di luar 4 nilai yang sah |

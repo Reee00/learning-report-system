@@ -317,7 +317,7 @@ terhapus lewat CASCADE. Perilaku ini diuji oleh 6 test di `MasterDataIntegrityTe
 
 ## 6. Redirect setelah Login
 
-`Auth\LoginController::redirectByRole()` — enam role dipetakan eksplisit, tanpa fallback ke `/`:
+`Auth\LoginController::redirectByRole()` — tujuh role dipetakan eksplisit, tanpa fallback ke `/`:
 
 ```php
 return match ($role) {
@@ -325,8 +325,9 @@ return match ($role) {
     User::ROLE_RELATION   => redirect()->route('admin.schools.index'),
     User::ROLE_SPV_COACH  => redirect()->route('admin.coaches.index'),
     User::ROLE_COACH      => redirect()->route('coach.reports.index'),
-    User::ROLE_SCHOOL_PIC => redirect()->route('pic.dashboard'),
-    User::ROLE_FINANCE    => redirect()->route('attendance.index'),
+    User::ROLE_SCHOOL_PIC     => redirect()->route('pic.dashboard'),
+    User::ROLE_TEACHER_SCHOOL => redirect()->route('attendance.index'),
+    User::ROLE_FINANCE        => redirect()->route('attendance.index'),
     default               => abort(403, 'Role akun belum memiliki halaman awal. Hubungi SuperAdmin.'),
 };
 ```

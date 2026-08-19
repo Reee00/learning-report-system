@@ -27,7 +27,7 @@ capability, bukan oleh nama role.
 | Data absensi dapat dipakai lintas fungsi | Halaman Attendance + export CSV streaming untuk PIC, Relation, SPV, Finance |
 | Visibilitas insiden | Accident Notes ditampilkan sebagai blok merah urgent di detail laporan |
 
-## 3. Enam Role dan Kewenangannya
+## 3. Tujuh Role dan Kewenangannya
 
 | Role | Key | Landing setelah login | Kewenangan inti |
 |---|---|---|---|
@@ -36,6 +36,7 @@ capability, bukan oleh nama role.
 | SPV Coach | `spv_coach` | `admin.coaches.index` | Kelola akun Coach, assign/reassign kelas + lihat/ekspor absensi |
 | Coach | `coach` | `coach.reports.index` | Input & edit laporan + absensi untuk kelas yang di-assign; lihat Accident Notes |
 | School PIC | `school_pic` | `pic.dashboard` | Baca laporan **approved** dan absensi sekolah yang di-plot + export CSV |
+| Teacher School | `teacher_school` | `attendance.index` | Lihat laporan & absensi sekolah yang di-plot (school-scoped) |
 | Finance | `finance` | `attendance.index` | Lihat absensi & export CSV sekolah yang di-plot |
 
 Role `admin` versi lama **sudah tidak ada**. Seluruh akun `admin` dimigrasikan menjadi `relation`, dan
