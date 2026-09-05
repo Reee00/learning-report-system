@@ -5,7 +5,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ReportMedia extends Model
 {
-    protected $fillable = ['report_id', 'type', 'path', 'original_name'];
+    protected $fillable = ['report_id', 'type', 'path', 'original_name', 'disk', 'file_size'];
 
     public function report()
     {
@@ -24,15 +24,28 @@ class ReportMedia extends Model
         return $this->type === 'video';
     }
 
-    // Helper: ambil URL publik
-public function url()
-{
-    // Kalau path sudah URL lengkap (Cloudinary), langsung return
-    if (str_starts_with($this->path, 'http')) {
-        return $this->path;
+    /**
+     * Get the public/accessible URL for this media.
+     *
+     * For legacy Cloudinary URLs (path starts with http), returns as-is.
+     * For local files, returns a signed route that enforces authorization.
+     */
+    public function url()
+    {
+        // Legacy Cloudinary URLs — return directly
+        if (str_starts_with($this->path, 'http')) {
+            return $this->path;
+        }
+
+        // Local files — use authorized serve route
+        return route('media.serve', ['media' => $this->id]);
     }
-    
-    // Fallback untuk data lama yang masih pakai local storage
-    return asset('storage/' . $this->path);
-}
+
+    /**
+     * Check whether this media is stored externally (e.g. Cloudinary).
+     */
+    public function isExternal(): bool
+    {
+        return str_starts_with($this->path, 'http://') || str_starts_with($this->path, 'https://');
+    }
 }

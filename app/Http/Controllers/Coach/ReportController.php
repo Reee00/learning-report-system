@@ -6,18 +6,21 @@ use App\Models\Report;
 use App\Models\ReportAttendance;
 use App\Models\SchoolClass;
 use App\Models\Student;
+use App\Services\MediaStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use App\Models\ReportMedia;
-use App\Helpers\CloudinaryHelper;
 
 class ReportController extends Controller
 {
+    public function __construct(
+        protected MediaStorageService $mediaStorage,
+    ) {}
+
     /**
      * Resolve a class the acting coach is actually assigned to.
      * Assignment is the authorization boundary for every report write, so it is
@@ -65,67 +68,31 @@ class ReportController extends Controller
     }
 
     /**
-     * Batas jaringan ke Cloudinary, dipisah supaya bisa di-override di test
-     * tanpa memanggil API sungguhan. Mengembalikan body JSON yang sudah
-     * di-decode (array), atau null kalau request gagal total.
-     */
-    protected function uploadToCloudinary(string $absolutePath, string $folder)
-    {
-        return CloudinaryHelper::upload($absolutePath, $folder);
-    }
-
-    /**
-     * Simpan satu file ke Cloudinary lalu catat di report_media.
+     * Simpan satu file ke local storage lalu catat di report_media.
      *
-     * CloudinaryHelper::upload() mengembalikan body JSON yang sudah di-decode,
-     * jadi upload yang gagal (kredensial kosong, jaringan mati, file ditolak)
-     * kembali TANPA "secure_url". Membaca key itu langsung memunculkan
-     * ErrorException "Undefined array key" di tengah rangkaian penyimpanan.
-     * Gagalkan dengan pesan yang terbaca supaya transaksi pemanggil rollback
-     * dan tidak meninggalkan laporan setengah tersimpan.
+     * Jika penyimpanan gagal, lempar ValidationException agar transaksi
+     * pemanggil rollback dan tidak meninggalkan laporan setengah tersimpan.
      */
-    private function storeMedia(Report $report, UploadedFile $file, string $type, string $folder): void
+    private function storeMedia(Report $report, UploadedFile $file, string $type): void
     {
-        $result    = $this->uploadToCloudinary($file->getPathname(), $folder);
-        $secureUrl = is_array($result) ? ($result['secure_url'] ?? null) : null;
-
-        if (!is_string($secureUrl) || $secureUrl === '') {
-            // Penyebab paling sering: kredensial Cloudinary di .env masih kosong,
-            // sehingga URL upload jadi /v1_1//auto/upload dan API menolak. Sebut
-            // penyebabnya di log supaya tidak dikira gangguan jaringan.
-            $missingConfig = collect(['cloud_name', 'api_key', 'api_secret'])
-                ->filter(fn ($key) => blank(config('services.cloudinary.'.$key)))
-                ->values()
-                ->all();
-
-            Log::error('Cloudinary upload failed, report submission rolled back', [
-                'report_id'      => $report->id,
-                'coach_id'       => Auth::id(),
-                'type'           => $type,
-                'file'           => $file->getClientOriginalName(),
-                'missing_config' => $missingConfig,
-                'reason'         => is_array($result)
-                    ? ($result['error']['message'] ?? 'response without secure_url')
-                    : 'no response from Cloudinary',
+        try {
+            $this->mediaStorage->store($report, $file, $type);
+        } catch (\Throwable $e) {
+            Log::error('Media upload failed, report submission rolled back', [
+                'report_id' => $report->id,
+                'coach_id'  => Auth::id(),
+                'type'      => $type,
+                'file'      => $file->getClientOriginalName(),
+                'error'     => $e->getMessage(),
             ]);
 
-            $label  = $type === 'photo' ? 'Foto' : 'Video';
-            $detail = $missingConfig !== []
-                ? ' Penyebab: kredensial Cloudinary belum diisi ('.implode(', ', $missingConfig).').'
-                : '';
+            $label = $type === 'photo' ? 'Foto' : 'Video';
 
             throw ValidationException::withMessages([
-                $type === 'photo' ? 'photos' : 'videos' => $label.' "'.$file->getClientOriginalName()
-                    .'" gagal diunggah. Laporan TIDAK tersimpan — silakan coba kirim ulang.'.$detail,
+                $type === 'photo' ? 'photos' : 'videos' => $label . ' "' . $file->getClientOriginalName()
+                    . '" gagal diunggah. Laporan TIDAK tersimpan — silakan coba kirim ulang.',
             ]);
         }
-
-        ReportMedia::create([
-            'report_id'     => $report->id,
-            'type'          => $type,
-            'path'          => $secureUrl,
-            'original_name' => $file->getClientOriginalName(),
-        ]);
     }
 
     /**
@@ -164,9 +131,9 @@ class ReportController extends Controller
             'activity_summary' => 'required|string|max:2000',
             'notes'            => 'nullable|string|max:1000',
             'photos'           => 'nullable|array|max:10',
-            'photos.*'         => 'file|image',
+            'photos.*'         => 'file|image|max:10240',
             'videos'           => 'nullable|array|max:3',
-            'videos.*'         => 'file|mimetypes:video/mp4,video/mpeg,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/avi,video/mov',
+            'videos.*'         => 'file|mimetypes:video/mp4,video/mpeg,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/avi,video/mov|max:102400',
             'attendance'       => 'required|array',
             'attendance.*'     => 'in:present,absent,sick,permission',
         ]);
@@ -174,10 +141,7 @@ class ReportController extends Controller
         $class = $this->assignedClassOrFail((int) $validated['class_id']);
         $this->assertAttendanceBelongsToClass($validated['attendance'], $class->id);
 
-        // Satu laporan = baris report + media + absensi. Sebelumnya ketiganya
-        // ditulis berurutan tanpa transaksi, jadi upload Cloudinary yang gagal
-        // membatalkan request SETELAH report tersimpan dan SEBELUM absensi
-        // ditulis — laporan "submitted" dengan 0 absensi. Semuanya harus
+        // Satu laporan = baris report + media + absensi. Semuanya harus
         // mendarat bersama atau tidak sama sekali.
         DB::transaction(function () use ($request, $validated, $class) {
             $report = Report::create([
@@ -191,14 +155,14 @@ class ReportController extends Controller
                 'status'           => 'submitted',
             ]);
 
-            // Upload foto ke Cloudinary (max 10)
+            // Upload foto ke local storage (max 10)
             foreach ($request->file('photos') ?? [] as $photo) {
-                $this->storeMedia($report, $photo, 'photo', 'lrs/photos');
+                $this->storeMedia($report, $photo, 'photo');
             }
 
-            // Upload video ke Cloudinary (max 3)
+            // Upload video ke local storage (max 3)
             foreach ($request->file('videos') ?? [] as $video) {
-                $this->storeMedia($report, $video, 'video', 'lrs/videos');
+                $this->storeMedia($report, $video, 'video');
             }
 
             // Simpan absensi
@@ -236,9 +200,9 @@ class ReportController extends Controller
             'activity_summary' => 'required|string|max:2000',
             'notes'            => 'nullable|string|max:1000',
             'photos'           => 'nullable|array|max:10',
-            'photos.*'         => 'file|image',
+            'photos.*'         => 'file|image|max:10240',
             'videos'           => 'nullable|array|max:3',
-            'videos.*'         => 'file|mimetypes:video/mp4,video/mpeg,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/avi,video/mov',
+            'videos.*'         => 'file|mimetypes:video/mp4,video/mpeg,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/avi,video/mov|max:102400',
             'delete_media'     => 'nullable|array',
             'delete_media.*'   => 'exists:report_media,id',
             'attendance'       => 'required|array',
@@ -250,14 +214,10 @@ class ReportController extends Controller
         $newPhotos = $request->file('photos') ?? [];
         $newVideos = $request->file('videos') ?? [];
 
-        // Sama seperti store(): report, media dan absensi harus atomic. Batas
-        // media pun dijadikan ValidationException, bukan `back()->with('error')`,
-        // karena (a) view edit hanya merender $errors sehingga pesan lama tidak
-        // pernah terlihat, dan (b) return di tengah proses meninggalkan report
-        // yang sudah berubah status tapi absensinya belum ditulis ulang.
-        // Penghapusan asset di Cloudinary tidak bisa di-rollback, jadi
-        // public_id-nya dikumpulkan dulu dan dieksekusi setelah commit.
-        $deletedPublicIds = DB::transaction(function () use ($validated, $report, $newPhotos, $newVideos) {
+        // Report, media dan absensi harus atomic. Penghapusan file dari disk
+        // dikumpulkan dulu dan dieksekusi setelah commit agar DB-transaction
+        // rollback tidak meninggalkan referensi ke file yang sudah terhapus.
+        $mediaToDeleteFromDisk = DB::transaction(function () use ($validated, $report, $newPhotos, $newVideos) {
             $report->update([
                 'report_date'      => $validated['report_date'],
                 'lesson_material'  => $validated['lesson_material'],
@@ -267,8 +227,8 @@ class ReportController extends Controller
                 'admin_notes'      => null,
             ]);
 
-            // Hapus media yang dipilih
-            $publicIds = [];
+            // Hapus media yang dipilih — kumpulkan info untuk disk cleanup setelah commit
+            $pendingDiskDeletes = [];
 
             if (!empty($validated['delete_media'])) {
                 $mediaToDelete = ReportMedia::whereIn('id', $validated['delete_media'])
@@ -276,9 +236,7 @@ class ReportController extends Controller
                     ->get();
 
                 foreach ($mediaToDelete as $media) {
-                    if (!empty($media->cloudinary_public_id)) {
-                        $publicIds[] = $media->cloudinary_public_id;
-                    }
+                    $pendingDiskDeletes[] = clone $media;
                     $media->delete();
                 }
             }
@@ -297,24 +255,25 @@ class ReportController extends Controller
                 ]);
             }
 
-            // Upload foto baru ke Cloudinary
+            // Upload foto baru ke local storage
             foreach ($newPhotos as $photo) {
-                $this->storeMedia($report, $photo, 'photo', 'lrs/photos');
+                $this->storeMedia($report, $photo, 'photo');
             }
 
-            // Upload video baru ke Cloudinary
+            // Upload video baru ke local storage
             foreach ($newVideos as $video) {
-                $this->storeMedia($report, $video, 'video', 'lrs/videos');
+                $this->storeMedia($report, $video, 'video');
             }
 
             // Update absensi
             $this->syncAttendance($report, $validated['attendance']);
 
-            return $publicIds;
+            return $pendingDiskDeletes;
         });
 
-        foreach ($deletedPublicIds as $publicId) {
-            CloudinaryHelper::delete($publicId);
+        // Hapus file dari disk SETELAH transaksi berhasil commit
+        foreach ($mediaToDeleteFromDisk as $media) {
+            $this->mediaStorage->delete($media);
         }
 
         return redirect()->route('coach.reports.index')

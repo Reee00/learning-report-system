@@ -60,7 +60,37 @@ return [
             'report' => false,
         ],
 
+        /*
+        |----------------------------------------------------------------------
+        | Report Media Disk
+        |----------------------------------------------------------------------
+        |
+        | Dedicated disk for report media (photos/videos). Files are stored
+        | OUTSIDE the public symlink so they can only be accessed through
+        | authorized controller routes. Structure:
+        |   storage/app/report-media/reports/{year}/{report_id}/images/
+        |   storage/app/report-media/reports/{year}/{report_id}/videos/
+        |
+        */
+        'report_media' => [
+            'driver' => 'local',
+            'root'   => storage_path('app/report-media'),
+            'throw'  => false,
+            'report' => false,
+        ],
+
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Report Media Disk Name
+    |--------------------------------------------------------------------------
+    |
+    | The disk name used by MediaStorageService. Can be overridden via env
+    | to point to a different disk (e.g. 's3') without code changes.
+    |
+    */
+    'report_media_disk' => env('REPORT_MEDIA_DISK', 'report_media'),
 
     /*
     |--------------------------------------------------------------------------

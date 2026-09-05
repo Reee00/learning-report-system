@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Login — Learning Report System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        html { min-width: 320px; }
+        body { min-height: 100dvh !important; padding: .75rem 0; }
+        .container { width: 100%; padding-inline: .75rem; }
+        .form-control { min-height: 48px; font-size: 16px; }
+        .btn { min-height: 44px; }
+        @media (max-width: 359.98px) {
+            .container { padding-inline: .5rem; }
+            .card-body { padding: 1rem !important; }
+        }
+    </style>
 </head>
 <body class="bg-light d-flex align-items-center" style="min-height: 100vh">
 

@@ -193,6 +193,13 @@ Route::middleware(['auth', 'role:school_pic', 'permission:attendance.view'])
         Route::get('reports/{report}', [PicDashboard::class, 'show'])->name('reports.show');
     });
 
+// ===== AUTHORIZED MEDIA SERVING =====
+// Media files are stored outside the public symlink. Access is authorized
+// per-report: the MediaController checks the user's role and school scope.
+Route::get('/media/{media}', [\App\Http\Controllers\MediaController::class, 'serve'])
+    ->middleware('auth')
+    ->name('media.serve');
+
 // ===== AJAX ENDPOINT FOR STUDENTS =====
 Route::get('/api/classes/{class}/students', function (\App\Models\SchoolClass $class) {
     abort_unless(
@@ -203,3 +210,4 @@ Route::get('/api/classes/{class}/students', function (\App\Models\SchoolClass $c
 
     return response()->json($class->students()->select('id', 'name')->get());
 })->middleware(['auth', 'permission:students.view']);
+

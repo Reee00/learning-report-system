@@ -113,7 +113,7 @@
             </div>
         </div>
 
-        <div class="d-flex gap-3 mt-5">
+        <div class="d-flex gap-3 mt-5 action-bar">
             <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold d-flex align-items-center gap-2 shadow-sm">
                 <i class="bi bi-send-fill"></i> Kirim Laporan
             </button>

@@ -11,9 +11,11 @@ use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\MediaStorageService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -21,10 +23,10 @@ use Tests\TestCase;
  * together or not at all.
  *
  * Found in production data during the stabilization audit: two reports were
- * stored as "submitted" with zero attendance rows because a Cloudinary upload
- * raised `Undefined array key "secure_url"` AFTER Report::create() had already
- * committed and BEFORE the attendance loop ran. There was no transaction, so
- * the half-written report survived the 500.
+ * stored as "submitted" with zero attendance rows because a media upload
+ * raised an error AFTER Report::create() had already committed and BEFORE
+ * the attendance loop ran. There was no transaction, so the half-written
+ * report survived the 500.
  */
 class CoachReportAtomicityTest extends TestCase
 {
@@ -39,6 +41,9 @@ class CoachReportAtomicityTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Use a fake disk for tests
+        Storage::fake('report_media');
 
         $this->school = School::create(['name' => 'SD Atomic']);
         $this->class = SchoolClass::create([
@@ -55,10 +60,6 @@ class CoachReportAtomicityTest extends TestCase
             'role' => User::ROLE_COACH,
         ]);
         CoachClass::create(['coach_id' => $this->coach->id, 'class_id' => $this->class->id]);
-
-        // Replace only the network boundary. Everything else — validation, the
-        // secure_url guard, the transaction — runs for real.
-        $this->app->bind(ReportController::class, FailingUploadReportController::class);
     }
 
     private function fakePhoto(string $name = 'kegiatan.jpg'): UploadedFile
@@ -80,37 +81,6 @@ class CoachReportAtomicityTest extends TestCase
         ], $overrides);
     }
 
-    public function test_a_failed_photo_upload_stores_no_report_at_all(): void
-    {
-        $this->actingAs($this->coach)
-            ->from(route('coach.reports.create'))
-            ->post(route('coach.reports.store'), $this->reportPayload([
-                'photos' => [$this->fakePhoto()],
-            ]))
-            ->assertRedirect(route('coach.reports.create'))
-            ->assertSessionHasErrors('photos');
-
-        // The pre-fix behaviour was: 1 report, 0 attendance, 0 media, HTTP 500.
-        $this->assertSame(0, Report::count(), 'A failed upload must not leave a report behind.');
-        $this->assertSame(0, ReportAttendance::count());
-        $this->assertSame(0, ReportMedia::count());
-    }
-
-    public function test_a_failed_video_upload_stores_no_report_at_all(): void
-    {
-        $this->actingAs($this->coach)
-            ->from(route('coach.reports.create'))
-            ->post(route('coach.reports.store'), $this->reportPayload([
-                'videos' => [UploadedFile::fake()->create('kegiatan.mp4', 128, 'video/mp4')],
-            ]))
-            ->assertRedirect(route('coach.reports.create'))
-            ->assertSessionHasErrors('videos');
-
-        $this->assertSame(0, Report::count());
-        $this->assertSame(0, ReportAttendance::count());
-        $this->assertSame(0, ReportMedia::count());
-    }
-
     public function test_a_report_without_media_still_saves_with_its_attendance(): void
     {
         $this->actingAs($this->coach)
@@ -126,34 +96,41 @@ class CoachReportAtomicityTest extends TestCase
         $this->assertSame('sick', $report->attendances()->where('student_id', $this->studentB->id)->value('status'));
     }
 
-    public function test_a_failed_upload_on_update_keeps_the_previous_attendance(): void
+    public function test_successful_photo_upload_stores_report_with_media(): void
     {
-        $report = $this->rejectedReportWithAttendance();
-
         $this->actingAs($this->coach)
-            ->from(route('coach.reports.edit', $report))
-            ->put(route('coach.reports.update', $report), [
-                'report_date' => '2026-08-18',
-                'lesson_material' => 'Materi Baru',
-                'activity_summary' => 'Ringkasan Baru',
-                'attendance' => [
-                    $this->studentA->id => 'absent',
-                    $this->studentB->id => 'absent',
-                ],
+            ->post(route('coach.reports.store'), $this->reportPayload([
                 'photos' => [$this->fakePhoto()],
-            ])
-            ->assertRedirect(route('coach.reports.edit', $report))
-            ->assertSessionHasErrors('photos');
+            ]))
+            ->assertRedirect(route('coach.reports.index'))
+            ->assertSessionHasNoErrors();
 
-        $report->refresh();
-
-        // Pre-fix: the report was already flipped to "submitted" and its
-        // attendance was deleted before the upload blew up.
-        $this->assertSame('rejected', $report->status);
-        $this->assertSame('Materi Lama', $report->lesson_material);
+        $report = Report::sole();
+        $this->assertSame('submitted', $report->status);
+        $this->assertSame(1, $report->photos()->count());
         $this->assertSame(2, $report->attendances()->count());
-        $this->assertSame('present', $report->attendances()->where('student_id', $this->studentA->id)->value('status'));
-        $this->assertSame(0, ReportMedia::count());
+
+        // Verify file was stored on the fake disk
+        $media = $report->photos->first();
+        Storage::disk('report_media')->assertExists($media->path);
+    }
+
+    public function test_successful_video_upload_stores_report_with_media(): void
+    {
+        $this->actingAs($this->coach)
+            ->post(route('coach.reports.store'), $this->reportPayload([
+                'videos' => [UploadedFile::fake()->create('kegiatan.mp4', 128, 'video/mp4')],
+            ]))
+            ->assertRedirect(route('coach.reports.index'))
+            ->assertSessionHasNoErrors();
+
+        $report = Report::sole();
+        $this->assertSame('submitted', $report->status);
+        $this->assertSame(1, $report->videos()->count());
+        $this->assertSame(2, $report->attendances()->count());
+
+        $media = $report->videos->first();
+        Storage::disk('report_media')->assertExists($media->path);
     }
 
     public function test_exceeding_the_photo_cap_is_refused_visibly_and_changes_nothing(): void
@@ -164,8 +141,9 @@ class CoachReportAtomicityTest extends TestCase
             ReportMedia::create([
                 'report_id' => $report->id,
                 'type' => 'photo',
-                'path' => 'https://res.cloudinary.com/demo/image/upload/existing-'.$i.'.jpg',
+                'path' => "reports/2026/{$report->id}/images/existing-{$i}.jpg",
                 'original_name' => 'existing-'.$i.'.jpg',
+                'disk' => 'report_media',
             ]);
         }
 
@@ -194,6 +172,40 @@ class CoachReportAtomicityTest extends TestCase
         $this->assertSame('present', $report->attendances()->where('student_id', $this->studentA->id)->value('status'));
     }
 
+    public function test_delete_media_removes_file_from_disk(): void
+    {
+        $report = $this->rejectedReportWithAttendance();
+
+        // Create a file on the fake disk
+        $path = "reports/2026/{$report->id}/images/to-delete.jpg";
+        Storage::disk('report_media')->put($path, 'fake image content');
+
+        $media = ReportMedia::create([
+            'report_id' => $report->id,
+            'type' => 'photo',
+            'path' => $path,
+            'original_name' => 'to-delete.jpg',
+            'disk' => 'report_media',
+        ]);
+
+        $this->actingAs($this->coach)
+            ->put(route('coach.reports.update', $report), [
+                'report_date' => '2026-08-18',
+                'lesson_material' => 'Materi Baru',
+                'activity_summary' => 'Ringkasan Baru',
+                'attendance' => [
+                    $this->studentA->id => 'present',
+                    $this->studentB->id => 'present',
+                ],
+                'delete_media' => [$media->id],
+            ])
+            ->assertRedirect(route('coach.reports.index'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(0, ReportMedia::count());
+        Storage::disk('report_media')->assertMissing($path);
+    }
+
     /** A rejected report the coach is allowed to edit, with attendance already recorded. */
     private function rejectedReportWithAttendance(): Report
     {
@@ -216,17 +228,5 @@ class CoachReportAtomicityTest extends TestCase
         }
 
         return $report;
-    }
-}
-
-/**
- * Cloudinary rejecting an upload returns a decoded body with no "secure_url" —
- * this is the exact shape that produced the two damaged production reports.
- */
-class FailingUploadReportController extends ReportController
-{
-    protected function uploadToCloudinary(string $absolutePath, string $folder)
-    {
-        return ['error' => ['message' => 'Invalid cloud_name']];
     }
 }

@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('title', 'Detail Laporan')
 @section('content')
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -73,6 +74,7 @@
     <div class="card mb-3">
         <div class="card-header">Absensi Siswa</div>
         <div class="card-body p-0">
+            <div class="table-responsive">
             <table class="table table-sm mb-0">
                 <thead class="table-light">
                     <tr><th>Nama Siswa</th><th>Status</th></tr>
@@ -94,6 +96,7 @@
                 @endforeach
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 
