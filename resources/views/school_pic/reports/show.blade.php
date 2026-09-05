@@ -100,8 +100,16 @@
         </div>
     </div>
 
-    <a href="{{ route('pic.dashboard') }}" class="btn btn-outline-secondary">
-        ← Kembali ke Dashboard
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ route('pic.dashboard') }}" class="btn btn-outline-secondary">
+            ← Kembali ke Dashboard
+        </a>
+        <a href="{{ route('pic.reports.download', $report) }}"
+           target="_blank"
+           id="btn-download-report"
+           class="btn btn-success fw-semibold">
+            <i class="bi bi-download me-2"></i> Download Report
+        </a>
+    </div>
 </div>
 @endsection

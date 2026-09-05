@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\AuthorizationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class ReportController extends Controller
 {
@@ -115,5 +116,35 @@ class ReportController extends Controller
         abort_unless($user instanceof User, 403);
 
         return $user;
+    }
+
+    /**
+     * Download (print-ready HTML) an approved Coach Report.
+     *
+     * Security checks (in order):
+     * 1. Permission middleware enforces reports.download capability.
+     * 2. School scope is checked via ensureSchoolAccess().
+     * 3. Report status must be approved — no other status is downloadable.
+     * 4. Coach role: further restricted to own reports only (handled via
+     *    the dedicated Coach\ReportController::download instead).
+     */
+    public function download(Report $report)
+    {
+        $this->ensureSchoolAccess($report);
+        abort_unless($report->status === 'approved', 403, 'Hanya laporan yang sudah disetujui dapat diunduh.');
+
+        $report->load(['coach', 'school', 'schoolClass', 'attendances.student', 'media']);
+
+        // Build a safe filename: Coach-Report-{School}-{Coach}-{Date}
+        $filename = 'Coach-Report-'
+            . Str::slug($report->school->name) . '-'
+            . Str::slug($report->coach->name) . '-'
+            . $report->report_date->format('Y-m-d')
+            . '.html';
+
+        return response()
+            ->view('admin.reports.download', compact('report'))
+            ->header('Content-Type', 'text/html; charset=utf-8')
+            ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
     }
 }

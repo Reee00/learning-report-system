@@ -81,6 +81,13 @@
                                    class="btn btn-sm btn-outline-primary rounded-pill px-3">
                                     <i class="bi bi-pencil me-1"></i> Edit
                                 </a>
+                            @elseif($report->status === 'approved')
+                                <a href="{{ route('coach.reports.download', $report) }}"
+                                   target="_blank"
+                                   id="btn-download-report-{{ $report->id }}"
+                                   class="btn btn-sm btn-outline-success rounded-pill px-3">
+                                    <i class="bi bi-download me-1"></i> Download
+                                </a>
                             @else
                                 <span class="text-muted small"><i class="bi bi-lock-fill"></i> Terkunci</span>
                             @endif

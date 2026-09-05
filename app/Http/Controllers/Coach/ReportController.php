@@ -279,4 +279,31 @@ class ReportController extends Controller
         return redirect()->route('coach.reports.index')
             ->with('success', 'Laporan berhasil diperbarui dan dikirim ulang!');
     }
+
+    /**
+     * Download (print-ready HTML) an approved Coach Report.
+     *
+     * Security: Coach can only download their OWN approved reports.
+     * Status check prevents download of non-approved reports.
+     */
+    public function download(Report $report)
+    {
+        // Coach can only download their own reports
+        abort_if($report->coach_id !== Auth::id(), 403, 'Anda tidak memiliki akses ke laporan ini.');
+        abort_unless($report->status === 'approved', 403, 'Hanya laporan yang sudah disetujui dapat diunduh.');
+
+        $report->load(['coach', 'school', 'schoolClass', 'attendances.student', 'media']);
+
+        // Build a safe filename: Coach-Report-{School}-{Coach}-{Date}
+        $filename = 'Coach-Report-'
+            . \Illuminate\Support\Str::slug($report->school->name) . '-'
+            . \Illuminate\Support\Str::slug($report->coach->name) . '-'
+            . $report->report_date->format('Y-m-d')
+            . '.html';
+
+        return response()
+            ->view('admin.reports.download', compact('report'))
+            ->header('Content-Type', 'text/html; charset=utf-8')
+            ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
+    }
 }

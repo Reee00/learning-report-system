@@ -144,9 +144,16 @@
                             </span>
                         </td>
                         <td class="text-center">
-                            <a href="{{ route('pic.reports.show', $report) }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                                Lihat
-                            </a>
+                            <div class="d-flex gap-1 justify-content-center">
+                                <a href="{{ route('pic.reports.show', $report) }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                    Lihat
+                                </a>
+                                <a href="{{ route('pic.reports.download', $report) }}"
+                                   target="_blank"
+                                   class="btn btn-sm btn-outline-success rounded-pill px-2">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
                 @empty

@@ -210,10 +210,18 @@
         @endif
     </div>
 
-    <div class="mt-4">
+    <div class="mt-4 d-flex gap-2 flex-wrap">
         <a href="{{ route('admin.reports.index') }}" class="btn btn-light border px-4 py-2 fw-medium text-secondary">
             <i class="bi bi-arrow-left me-2"></i> Kembali ke Daftar
         </a>
+        @if($report->status === 'approved' && app(\App\Services\AuthorizationService::class)->allows(auth()->user(), 'reports.download'))
+        <a href="{{ route('admin.reports.download', $report) }}"
+           target="_blank"
+           id="btn-download-report"
+           class="btn btn-success px-4 py-2 fw-semibold shadow-sm">
+            <i class="bi bi-download me-2"></i> Download Report
+        </a>
+        @endif
     </div>
 </div>
 @endsection

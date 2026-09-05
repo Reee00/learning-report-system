@@ -64,6 +64,9 @@ Route::middleware(['auth', 'role:coach'])->prefix('coach')->name('coach.')->grou
     Route::put('reports/{report}', [CoachReportController::class, 'update'])
         ->middleware('permission:reports.update')
         ->name('reports.update');
+    Route::get('reports/{report}/download', [CoachReportController::class, 'download'])
+        ->middleware('permission:reports.download')
+        ->name('reports.download');
 
     // Coach: view list of assigned classes and manage their students.
     // class_id is always resolved from the coach assignment in the backend.
@@ -114,6 +117,9 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::patch('reports/{report}/reject', [AdminReportController::class, 'reject'])
         ->middleware('permission:reports.review')
         ->name('reports.reject');
+    Route::get('reports/{report}/download', [AdminReportController::class, 'download'])
+        ->middleware('permission:reports.download')
+        ->name('reports.download');
 
     // School master data.
     Route::get('schools', [SchoolController::class, 'index'])
@@ -191,6 +197,9 @@ Route::middleware(['auth', 'role:school_pic', 'permission:attendance.view'])
     ->group(function () {
         Route::get('dashboard', [PicDashboard::class, 'index'])->name('dashboard');
         Route::get('reports/{report}', [PicDashboard::class, 'show'])->name('reports.show');
+        Route::get('reports/{report}/download', [AdminReportController::class, 'download'])
+            ->middleware('permission:reports.download')
+            ->name('reports.download');
     });
 
 // ===== AUTHORIZED MEDIA SERVING =====

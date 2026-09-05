@@ -121,9 +121,18 @@
                             </span>
                         </td>
                         <td class="text-center">
-                            <a href="{{ route('admin.reports.show', $report) }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                                Detail
-                            </a>
+                            <div class="d-flex gap-1 justify-content-center flex-wrap">
+                                <a href="{{ route('admin.reports.show', $report) }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                    Detail
+                                </a>
+                                @if($report->status === 'approved' && app(\App\Services\AuthorizationService::class)->allows(auth()->user(), 'reports.download'))
+                                <a href="{{ route('admin.reports.download', $report) }}"
+                                   target="_blank"
+                                   class="btn btn-sm btn-outline-success rounded-pill px-3">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                 @empty

@@ -32,6 +32,7 @@ class AuthorizationService
             'attendance.export',
             'reports.view_all',
             'reports.review',
+            'reports.download',
         ],
         'spv_coach' => [
             'dashboard.view',
@@ -43,11 +44,13 @@ class AuthorizationService
             'attendance.view',
             'attendance.export',
             'reports.view_all',
+            'reports.download',
         ],
         'coach' => [
             'reports.view',
             'reports.create',
             'reports.update',
+            'reports.download',
             'students.view',
             'students.create',
             'accident_notes.view',
@@ -56,12 +59,14 @@ class AuthorizationService
             'attendance.view',
             'attendance.export',
             'reports.view_all',
+            'reports.download',
             'students.view',
         ],
         'teacher_school' => [
             'attendance.view',
             'attendance.export',
             'reports.view_all',
+            'reports.download',
         ],
         'finance' => [
             'attendance.view',
