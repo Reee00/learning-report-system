@@ -38,11 +38,6 @@ class MediaController extends Controller
 
         $this->authorizeMediaAccess($report);
 
-        // External URLs (legacy Cloudinary) — redirect to the external URL
-        if ($media->isExternal()) {
-            return redirect($media->path);
-        }
-
         $absolutePath = $this->mediaStorage->absolutePath($media);
         abort_if($absolutePath === null, 404, 'File media tidak ditemukan.');
 
@@ -75,7 +70,9 @@ class MediaController extends Controller
             return;
         }
 
-        // School-scoped roles: must have school access AND report must be approved
+        // Approval-gated roles: school access AND report must be approved.
+        // Finance lolos canAccessSchool untuk semua sekolah (scope all-school),
+        // jadi satu-satunya penahannya di sini adalah status approved.
         if (in_array($user->role, [\App\Models\User::ROLE_SCHOOL_PIC, \App\Models\User::ROLE_TEACHER_SCHOOL, \App\Models\User::ROLE_FINANCE], true)) {
             abort_unless(
                 $this->authorization->canAccessSchool($user, (int) $report->school_id),
@@ -113,6 +110,7 @@ class MediaController extends Controller
             'webm' => 'video/webm',
         ];
 
-        return $mimeMap[$extension] ?? ($media->isPhoto() ? 'image/jpeg' : 'video/mp4');
+        return $mimeMap[$extension]
+            ?? ($media->isVideo() ? 'video/mp4' : 'image/jpeg');
     }
 }

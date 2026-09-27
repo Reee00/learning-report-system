@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SchoolClass;
 use App\Models\Student;
+use App\Services\ActivityLogService;
 use App\Services\AuthorizationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -10,6 +11,9 @@ use Rap2hpoutre\FastExcel\FastExcel;
 
 class StudentController extends Controller
 {
+    public function __construct(private ActivityLogService $activityLog)
+    {
+    }
     // Halaman detail kelas + daftar siswa
     public function show(Request $request, SchoolClass $class)
     {
@@ -44,10 +48,19 @@ class StudentController extends Controller
             return back()->with('error', 'Siswa dengan nama tersebut sudah ada di kelas ini.');
         }
 
-        Student::create([
+        $student = Student::create([
             'class_id' => $class->id,
             'name'     => $validated['name'],
         ]);
+
+        $this->activityLog->log(
+            $request->user(),
+            'student.created',
+            'student',
+            $student->id,
+            "Siswa ditambahkan: {$student->name} (kelas {$class->name})",
+            request: $request,
+        );
 
         return back()->with('success', 'Siswa berhasil ditambahkan!');
     }
@@ -93,6 +106,16 @@ class StudentController extends Controller
                 $message .= " {$skipped} siswa dilewati karena sudah ada.";
             }
 
+            $this->activityLog->log(
+                $request->user(),
+                'student.imported',
+                'school_class',
+                $class->id,
+                "Import siswa kelas {$class->name}: {$imported} berhasil, {$skipped} dilewati",
+                ['imported' => $imported, 'skipped' => $skipped],
+                $request,
+            );
+
             return back()->with('success', $message);
 
         } catch (\Exception $e) {
@@ -101,11 +124,20 @@ class StudentController extends Controller
     }
 
     // Hapus siswa
-    public function destroy(SchoolClass $class, Student $student)
+    public function destroy(Request $request, SchoolClass $class, Student $student)
     {
         $this->authorizeAccess($class, 'students.delete');
 
         abort_if($student->class_id !== $class->id, 403);
+
+        $this->activityLog->log(
+            $request->user(),
+            'student.deleted',
+            'student',
+            $student->id,
+            "Siswa dihapus: {$student->name} (kelas {$class->name})",
+            request: $request,
+        );
 
         $student->delete();
         return back()->with('success', 'Siswa berhasil dihapus.');

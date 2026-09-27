@@ -7,8 +7,8 @@ class Report extends Model
 {
     protected $fillable = [
         'coach_id', 'school_id', 'class_id', 'report_date',
-        'lesson_material', 'activity_summary', 'notes',
-        'photo_path', 'status', 'admin_notes', 'approved_by', 'approved_at',
+        'lesson_material', 'goals_materi', 'activity_report', 'notes',
+        'status', 'admin_notes', 'approved_by', 'approved_at',
     ];
 
     protected $casts = [
@@ -53,5 +53,14 @@ public function photos()
 public function videos()
 {
     return $this->hasMany(ReportMedia::class)->where('type', 'video');
+}
+
+/**
+ * Bukti kehadiran (foto daftar hadir, dsb.) — disimpan pada arsitektur
+ * media privat yang sama dengan foto/video laporan.
+ */
+public function attendanceMedia()
+{
+    return $this->hasMany(ReportMedia::class)->where('type', 'attendance');
 }
 }

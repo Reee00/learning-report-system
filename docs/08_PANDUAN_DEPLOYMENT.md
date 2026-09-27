@@ -11,4 +11,6 @@ Deployment production ditujukan menggunakan PHP 8.4 dan MySQL. Nilai host, crede
 - Jalankan test sebelum release.
 - Pantau storage dan ukuran media.
 
-Dockerfile saat ini menggunakan PHP 8.3, sedangkan Composer meminta PHP `^8.4`; kompatibilitas image belum terverifikasi dan perlu diselesaikan pada deployment. Dokumentasi ini tidak menyatakan Cloudinary aktif. Command migrasi Cloudinary hanya untuk data legacy setelah backup dan verifikasi.
+- Set upload limits di PHP server production: `upload_max_filesize=101M`, `post_max_size=310M`, `memory_limit=256M` (Add Video, 3×100MB).
+
+Deployment BUKAN berbasis Docker — `Dockerfile` sudah dihapus (2026-09-11); item QA L-005 (Docker PHP 8.3 vs 8.4) tidak relevan lagi. Dokumentasi ini tidak menyatakan Cloudinary aktif. Command migrasi Cloudinary hanya untuk data legacy setelah backup dan verifikasi (saat ini 0 baris media eksternal di database).

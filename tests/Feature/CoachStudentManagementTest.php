@@ -251,7 +251,7 @@ class CoachStudentManagementTest extends TestCase
             'class_id'         => $this->classA->id,
             'report_date'      => '2026-08-19',
             'lesson_material'  => 'Materi',
-            'activity_summary' => 'Ringkasan',
+            'activity_summary' => 'Ringkasan', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
             'status'           => 'submitted',
         ]);
 
@@ -285,7 +285,7 @@ class CoachStudentManagementTest extends TestCase
                 'class_id'         => $this->classA->id,
                 'report_date'      => '2026-08-19',
                 'lesson_material'  => 'Pengenalan algoritma',
-                'activity_summary' => 'Kegiatan belajar mengajar',
+                'activity_summary' => 'Kegiatan belajar mengajar', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
                 'attendance'       => [$student->id => 'present'],
             ])
             ->assertRedirectToRoute('coach.reports.index');

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Report;
 use App\Models\ReportAttendance;
 use App\Models\School;
 use App\Models\SchoolClass;
@@ -38,8 +39,11 @@ class AttendanceScopeService
             $attendance->whereHas('report', fn (Builder $reports) => $reports->whereDate('report_date', '<=', $date));
         });
 
+        // Kolom SELALU di-qualify: pemanggil bisa menambahkan join ke tabel
+        // reports (grouping per tanggal / summary), yang juga punya kolom
+        // status — tanpa qualifier SQLite/MySQL melempar "ambiguous column".
         $query->when($filters['attendance_status'] ?? null, function (Builder $attendance, string $status): void {
-            $attendance->where('status', $status);
+            $attendance->where('report_attendances.status', $status);
         });
 
         $query->when($filters['report_status'] ?? null, function (Builder $attendance, string $status): void {
@@ -47,6 +51,19 @@ class AttendanceScopeService
         });
 
         return $query->latest('report_attendances.id');
+    }
+
+    /**
+     * Query laporan (satu laporan = satu sesi kehadiran per kelas+tanggal)
+     * dalam scope autorisasi user — dipakai halaman drill-down attendance
+     * (detail kelas → daftar tanggal, detail tanggal). Aturan scope sama
+     * persis dengan query(): sekolah, status approval, penugasan coach.
+     */
+    public function scopedReports(User $user): Builder
+    {
+        return Report::query()->where(function (Builder $reports) use ($user): void {
+            $this->scopeReports($reports, $user);
+        });
     }
 
     public function schoolsFor(User $user)
@@ -77,6 +94,8 @@ class AttendanceScopeService
             $reports->whereIn('school_id', $schoolIds);
         }
 
+        // Finance kini all-school (AuthorizationService), sehingga satu-satunya
+        // pembatasnya adalah status approval — bukan daftar sekolah.
         if (in_array($user->role, [User::ROLE_SCHOOL_PIC, User::ROLE_TEACHER_SCHOOL, User::ROLE_FINANCE], true)) {
             $reports->where('status', 'approved');
         }

@@ -12,13 +12,14 @@
 @endphp
 
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-column flex-sm-row justify-content-sm-between align-items-stretch align-items-sm-center gap-3 mb-4">
         <div>
             <h4 class="mb-1 fw-bold"><i class="bi bi-building text-primary me-2"></i> Master Data Sekolah</h4>
             <p class="text-muted small mb-0">Kelola daftar sekolah mitra dan informasi penanggung jawab.</p>
         </div>
         @if($canCreateSchool)
-            <button class="btn btn-primary shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addSchoolModal">
+            <button class="btn btn-primary shadow-sm d-flex align-items-center justify-content-center gap-2"
+                    data-bs-toggle="modal" data-bs-target="#addSchoolModal">
                 <i class="bi bi-plus-circle"></i> Tambah Sekolah
             </button>
         @endif
@@ -82,7 +83,7 @@
                 <tbody>
                 @forelse($schools as $school)
                     <tr>
-                        <td class="text-center text-muted small">{{ $loop->iteration }}</td>
+                        <td class="text-center text-muted small">{{ ($schools->currentPage() - 1) * $schools->perPage() + $loop->iteration }}</td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="bg-primary-subtle text-primary rounded d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
@@ -113,7 +114,7 @@
                         </td>
                         @if($hasSchoolActions)
                             <td>
-                                <div class="d-flex justify-content-center gap-2">
+                                <div class="d-flex justify-content-center gap-2 flex-wrap">
                                         <a href="{{ route('admin.schools.show', $school) }}" class="btn btn-sm btn-outline-info">
                                         Detail
                                     </a>
@@ -133,31 +134,51 @@
                     </tr>
 
                     @if($canUpdateSchool)
-                    {{-- Modal Edit --}}
-                    <div class="modal fade" id="editSchoolModal{{ $school->id }}" tabindex="-1">
-                        <div class="modal-dialog modal-dialog-centered">
+                    {{-- Modal Edit (responsif: 1 kolom di ponsel, 2 kolom di desktop) --}}
+                    <div class="modal fade" id="editSchoolModal{{ $school->id }}" tabindex="-1"
+                         aria-labelledby="editSchoolModalLabel{{ $school->id }}">
+                        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
                             <div class="modal-content border-0 shadow">
                                 <form method="POST" action="{{ route('admin.schools.update', $school) }}">
                                     @csrf @method('PUT')
                                     <div class="modal-header bg-light border-bottom-0">
-                                        <h5 class="modal-title fw-bold text-dark"><i class="bi bi-pencil-square text-primary me-2"></i> Edit Sekolah</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        <h5 class="modal-title fw-bold text-dark" id="editSchoolModalLabel{{ $school->id }}">
+                                            <i class="bi bi-pencil-square text-primary me-2"></i> Edit Sekolah
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
                                     </div>
-                                    <div class="modal-body p-4">
-                                        <div class="mb-3">
-                                            <label class="form-label text-muted small fw-semibold">Nama Sekolah <span class="text-danger">*</span></label>
-                                            <input type="text" name="name" class="form-control bg-light" value="{{ $school->name }}" required>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label text-muted small fw-semibold">Alamat</label>
-                                            <textarea name="address" class="form-control bg-light" rows="2">{{ $school->address }}</textarea>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label text-muted small fw-semibold">Nama PIC</label>
-                                            <input type="text" name="pic_name" class="form-control bg-light" value="{{ $school->pic_name }}">
+                                    <div class="modal-body p-3 p-md-4">
+                                        <div class="row g-3">
+                                            <div class="col-12 col-lg-6">
+                                                <h6 class="fw-bold text-secondary text-uppercase small mb-3">
+                                                    <i class="bi bi-info-circle me-1"></i> Informasi Sekolah
+                                                </h6>
+                                                <div class="mb-3">
+                                                    <label class="form-label text-muted small fw-semibold" for="editName{{ $school->id }}">
+                                                        Nama Sekolah <span class="text-danger">*</span>
+                                                    </label>
+                                                    <input type="text" id="editName{{ $school->id }}" name="name"
+                                                           class="form-control bg-light" value="{{ $school->name }}" required>
+                                                </div>
+                                                <div class="mb-0">
+                                                    <label class="form-label text-muted small fw-semibold" for="editPic{{ $school->id }}">Nama PIC</label>
+                                                    <input type="text" id="editPic{{ $school->id }}" name="pic_name"
+                                                           class="form-control bg-light" value="{{ $school->pic_name }}"
+                                                           placeholder="Nama penanggung jawab di sekolah">
+                                                </div>
+                                            </div>
+                                            <div class="col-12 col-lg-6">
+                                                <h6 class="fw-bold text-secondary text-uppercase small mb-3">
+                                                    <i class="bi bi-geo-alt me-1"></i> Alamat
+                                                </h6>
+                                                <label class="form-label text-muted small fw-semibold" for="editAddress{{ $school->id }}">Alamat Sekolah</label>
+                                                <textarea id="editAddress{{ $school->id }}" name="address"
+                                                          class="form-control bg-light" rows="5"
+                                                          placeholder="Alamat lengkap sekolah (opsional)">{{ $school->address }}</textarea>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="modal-footer bg-light border-top-0">
+                                    <div class="modal-footer bg-light border-top-0 d-grid gap-2 d-sm-flex justify-content-sm-end">
                                         <button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">Batal</button>
                                         <button type="submit" class="btn btn-primary px-4 fw-medium">Simpan Perubahan</button>
                                     </div>
@@ -186,50 +207,79 @@
 </div>
 
 @if($canCreateSchool)
-{{-- Modal Tambah Sekolah --}}
-<div class="modal fade" id="addSchoolModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+{{-- Modal Tambah Sekolah
+     Struktur responsif: desktop 2 kolom seimbang (Informasi Sekolah |
+     Setup Awal), tablet & ponsel menumpuk satu kolom, dan pada layar < sm
+     modal menjadi layar penuh sehingga tidak ada overflow horizontal. --}}
+<div class="modal fade" id="addSchoolModal" tabindex="-1" aria-labelledby="addSchoolModalLabel">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow">
             <form method="POST" action="{{ route('admin.schools.store') }}">
                 @csrf
                 <div class="modal-header bg-primary text-white border-bottom-0">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle me-2"></i> Tambah Sekolah Baru</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title fw-bold" id="addSchoolModalLabel">
+                        <i class="bi bi-plus-circle me-2"></i> Tambah Sekolah Baru
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Tutup"></button>
                 </div>
-                <div class="modal-body p-4">
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-semibold">Nama Sekolah <span class="text-danger">*</span></label>
-                        <input type="text" name="name" class="form-control bg-light" required placeholder="Contoh: SD Negeri 1 Jakarta">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-semibold">Alamat</label>
-                        <textarea name="address" class="form-control bg-light" rows="2" placeholder="Alamat lengkap sekolah (opsional)"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-semibold">Nama PIC (Opsional)</label>
-                        <input type="text" name="pic_name" class="form-control bg-light"
-                               placeholder="Nama penanggung jawab di sekolah">
-                    </div>
-                    
-                    <hr>
-                    <h6 class="fw-bold mb-3">Setup Awal (Opsional)</h6>
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-semibold">Daftar Kelas Baru</label>
-                        <textarea name="class_names" class="form-control bg-light" rows="3"
-                                  placeholder="Pisahkan dengan koma atau baris baru. Contoh: Grade 1, Grade 2"></textarea>
-                        <div class="form-text small">Kelas-kelas ini akan otomatis dibuat dan dihubungkan ke sekolah ini.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-semibold">Hubungkan ke Program</label>
-                        <select name="program_ids[]" class="form-select bg-light" multiple size="4">
-                            @foreach($programs as $program)
-                                <option value="{{ $program->id }}">{{ $program->name }}</option>
-                            @endforeach
-                        </select>
-                        <div class="form-text small">Program yang dipilih akan otomatis dihubungkan ke semua kelas baru di atas. (Gunakan Ctrl/Cmd+Klik untuk memilih banyak)</div>
+                <div class="modal-body p-3 p-md-4">
+                    <div class="row g-3 g-md-4">
+                        {{-- Kolom 1: identitas sekolah --}}
+                        <div class="col-12 col-lg-6">
+                            <h6 class="fw-bold text-secondary text-uppercase small mb-3">
+                                <i class="bi bi-info-circle me-1"></i> Informasi Sekolah
+                            </h6>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-semibold" for="addSchoolName">
+                                    Nama Sekolah <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" id="addSchoolName" name="name" class="form-control bg-light"
+                                       value="{{ old('name') }}" required placeholder="Contoh: SD Negeri 1 Jakarta">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-semibold" for="addSchoolPic">Nama PIC (Opsional)</label>
+                                <input type="text" id="addSchoolPic" name="pic_name" class="form-control bg-light"
+                                       value="{{ old('pic_name') }}" placeholder="Nama penanggung jawab di sekolah">
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label text-muted small fw-semibold" for="addSchoolAddress">Alamat</label>
+                                <textarea id="addSchoolAddress" name="address" class="form-control bg-light" rows="4"
+                                          placeholder="Alamat lengkap sekolah (opsional)">{{ old('address') }}</textarea>
+                            </div>
+                        </div>
+
+                        {{-- Kolom 2: setup awal kelas & program --}}
+                        <div class="col-12 col-lg-6">
+                            <h6 class="fw-bold text-secondary text-uppercase small mb-3">
+                                <i class="bi bi-diagram-3 me-1"></i> Setup Awal (Opsional)
+                            </h6>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-semibold" for="addSchoolClassNames">Daftar Kelas Baru</label>
+                                <textarea id="addSchoolClassNames" name="class_names" class="form-control bg-light" rows="3"
+                                          placeholder="Pisahkan dengan koma atau baris baru. Contoh: Grade 1, Grade 2">{{ old('class_names') }}</textarea>
+                                <div class="form-text small">
+                                    Kelas-kelas ini dibuat otomatis dan dihubungkan ke sekolah ini.
+                                    Kelas yang sudah ada tidak akan terduplikasi.
+                                </div>
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label text-muted small fw-semibold" for="addSchoolPrograms">Hubungkan ke Program</label>
+                                <select id="addSchoolPrograms" name="program_ids[]" class="form-select bg-light" multiple size="5">
+                                    @foreach($programs as $program)
+                                        <option value="{{ $program->id }}" @selected(in_array($program->id, old('program_ids', [])))>
+                                            {{ $program->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text small">
+                                    Program terpilih otomatis dihubungkan ke semua kelas baru di atas.
+                                    Gunakan Ctrl/Cmd + Klik untuk memilih lebih dari satu.
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="modal-footer bg-light border-top-0">
+                <div class="modal-footer bg-light border-top-0 d-grid gap-2 d-sm-flex justify-content-sm-end">
                     <button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary px-4 fw-medium">Simpan Sekolah</button>
                 </div>
@@ -238,4 +288,18 @@
     </div>
 </div>
 @endif
+
+@section('scripts')
+<script>
+    // Validasi server mengembalikan pengguna ke halaman ini; buka kembali modal
+    // tambah sekolah agar pesan error terlihat di konteks formulirnya.
+    document.addEventListener('DOMContentLoaded', function () {
+        var hasOldInput = @json(old() !== []);
+        var modal = document.getElementById('addSchoolModal');
+        if (hasOldInput && modal && typeof bootstrap !== 'undefined') {
+            new bootstrap.Modal(modal).show();
+        }
+    });
+</script>
+@endsection
 @endsection

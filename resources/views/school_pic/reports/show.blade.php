@@ -19,7 +19,10 @@
                 <dt class="col-sm-4">Coach</dt>    <dd class="col-sm-8">{{ $report->coach->name }}</dd>
                 <dt class="col-sm-4">Tanggal</dt>  <dd class="col-sm-8">{{ $report->report_date->format('d M Y') }}</dd>
                 <dt class="col-sm-4">Materi</dt>   <dd class="col-sm-8">{{ $report->lesson_material }}</dd>
-                <dd class="col-sm-8">{!! nl2br(e($report->activity_summary)) !!}</dd>
+                <dt class="col-sm-4">Goals Materi</dt>
+                <dd class="col-sm-8">{!! nl2br(e($report->goals_materi)) !!}</dd>
+                <dt class="col-sm-4">Activity Report</dt>
+                <dd class="col-sm-8">{!! nl2br(e($report->activity_report)) !!}</dd>
             </dl>
         </div>
     </div>
@@ -39,6 +42,29 @@
                          class="img-fluid rounded"
                          style="height:150px;width:100%;object-fit:cover;"
                          alt="Foto {{ $loop->iteration }}">
+                </a>
+            </div>
+            @endforeach
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- GALERI BUKTI ABSENSI (Meeting 2026-09 req. G) --}}
+@if($report->attendanceMedia->count() > 0)
+<div class="card mb-3">
+    <div class="card-header fw-semibold">
+        📋 Bukti Absensi ({{ $report->attendanceMedia->count() }})
+    </div>
+    <div class="card-body">
+        <div class="row g-2">
+            @foreach($report->attendanceMedia as $att)
+            <div class="col-6 col-md-4 col-lg-3">
+                <a href="{{ $att->url() }}" target="_blank">
+                    <img src="{{ $att->url() }}"
+                         class="img-fluid rounded"
+                         style="height:150px;width:100%;object-fit:cover;"
+                         alt="Bukti Absensi {{ $loop->iteration }}">
                 </a>
             </div>
             @endforeach

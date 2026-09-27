@@ -32,7 +32,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('coach.reports.update', $report) }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ route('coach.reports.update', $report) }}" enctype="multipart/form-data" id="reportForm">
         @csrf
         @method('PUT')
 
@@ -70,11 +70,23 @@
                     <input type="text" name="lesson_material" class="form-control bg-light" value="{{ old('lesson_material', $report->lesson_material) }}" required>
                 </div>
                 <div class="col-12">
-                    <label class="form-label fw-semibold text-secondary small">Ringkasan Kegiatan <span class="text-danger">*</span></label>
-                    <textarea name="activity_summary" class="form-control bg-light" rows="4" required>{{ old('activity_summary', $report->activity_summary) }}</textarea>
+                    <label class="form-label fw-semibold text-secondary small">Goals Materi <span class="text-danger">*</span></label>
+                    <textarea name="goals_materi" class="form-control bg-light" rows="6" placeholder="Goals:
+- Memahami konsep storytelling visual dalam komik.
+- Mengenal bagaimana AI dapat membantu membuat komik secara cepat.
+- Siswa melakukan praktik dan menyusun cerita sesuai dengan konsep yang telah dibuat." required>{{ old('goals_materi', $report->goals_materi) }}</textarea>
+                    <div class="form-text small">Tuliskan goals pembelajaran pertemuan ini. <em># Bisa disesuaikan dengan goals yang dilakukan siswa pada pertemuan.</em></div>
                 </div>
                 <div class="col-12">
-                    <label class="form-label fw-semibold text-secondary small">Catatan Tambahan</label>
+                    <label class="form-label fw-semibold text-secondary small">Activity Report <span class="text-danger">*</span></label>
+                    <textarea name="activity_report" class="form-control bg-light" rows="6" placeholder="Progress:
+- Murid diminta untuk membuat komik dengan memanfaatkan GEM di Gemini dan teknik ANTIF dalam prompting AI.
+- Murid menentukan komik sesuai keinginan dan kreativitas mereka sendiri.
+- Murid dapat memahami dan mengikuti kelas dengan baik." required>{{ old('activity_report', $report->activity_report) }}</textarea>
+                    <div class="form-text small">Ceritakan aktivitas/progress siswa selama kelas berlangsung. <em># Bisa disesuaikan dengan aktivitas siswa pada pertemuan.</em></div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold text-secondary small">Kendala Teknis Saat Kelas Berjalan</label>
                     <textarea name="notes" class="form-control bg-light" rows="2">{{ old('notes', $report->notes) }}</textarea>
                 </div>
 
@@ -142,6 +154,40 @@
                     <input type="file" name="videos[]" class="form-control bg-light" accept="video/*" multiple>
                     <div id="videoPreview" class="mt-3"></div>
                 </div>
+
+                {{-- BUKTI ABSENSI EXISTING --}}
+                @if($report->attendanceMedia->count() > 0)
+                <div class="col-12">
+                    <label class="form-label fw-semibold text-secondary small"><i class="bi bi-clipboard-check me-1"></i> Bukti Absensi Saat Ini</label>
+                    <p class="small text-muted mb-2">Centang foto yang ingin dihapus.</p>
+                    <div class="d-flex flex-wrap gap-3">
+                        @foreach($report->attendanceMedia as $att)
+                        <div class="position-relative">
+                            <div class="overflow-hidden rounded-3 shadow-sm border" style="width: 100px; height: 100px;">
+                                <img src="{{ $att->url() }}" style="width: 100%; height: 100%; object-fit: cover;">
+                            </div>
+                            <div class="position-absolute top-0 end-0 m-1 bg-white rounded shadow-sm px-1 py-0 border">
+                                <div class="form-check m-0">
+                                    <input class="form-check-input mt-1" type="checkbox" name="delete_media[]" value="{{ $att->id }}" id="delAtt{{ $att->id }}" style="cursor:pointer">
+                                    <label class="form-check-label text-danger small fw-medium" for="delAtt{{ $att->id }}" style="cursor:pointer; font-size:10px;">Hapus</label>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
+                {{-- UPLOAD BUKTI ABSENSI BARU --}}
+                <div class="col-12">
+                    <label class="form-label fw-semibold text-secondary small">
+                        <i class="bi bi-clipboard-check me-1"></i> Tambah Bukti Absensi
+                        <span class="fw-normal text-muted ms-1">(sudah ada {{ $report->attendanceMedia->count() }}/5)</span>
+                    </label>
+                    <input type="file" name="attendance_media[]" class="form-control bg-light" accept="image/*" multiple>
+                    <div class="form-text small">Foto daftar hadir atau bukti kehadiran lainnya. Maksimal 5 foto (masing-masing maks. 10 MB).</div>
+                    <div id="attendancePreview" class="d-flex flex-wrap gap-2 mt-3"></div>
+                </div>
             </div>
         </div>
 
@@ -194,4 +240,100 @@
         </div>
     </form>
 </div>
+@endsection
+
+@section('scripts')
+<script>
+// Batas ukuran file — harus sinkron dengan validasi server (Coach\ReportController).
+const MAX_VIDEO_MB = 100;
+const MAX_PHOTO_MB = 10;
+const MAX_PHOTOS   = 10;
+const MAX_ATTENDANCE = 5;
+
+function bindImagePreview(selector, previewId, maxCount, maxMb) {
+    const input = document.querySelector(selector);
+    if (!input) return;
+
+    input.addEventListener('change', function () {
+        const preview = document.getElementById(previewId);
+        preview.innerHTML = '';
+
+        if (this.files.length > maxCount) {
+            alert(`Maksimal ${maxCount} foto!`);
+            this.value = '';
+            return;
+        }
+
+        for (const file of this.files) {
+            if (file.size > maxMb * 1024 * 1024) {
+                alert(`Foto "${file.name}" melebihi ${maxMb} MB. Kecilkan ukuran file atau pilih foto lain.`);
+                this.value = '';
+                preview.innerHTML = '';
+                return;
+            }
+        }
+
+        Array.from(this.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                preview.innerHTML += `
+                    <div class="position-relative overflow-hidden shadow-sm" style="width: 80px; height: 80px; border-radius: 10px; border: 2px solid #fff;">
+                        <img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>`;
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+}
+
+function bindVideoPreview(selector, previewId, maxMb) {
+    const input = document.querySelector(selector);
+    if (!input) return;
+
+    input.addEventListener('change', function () {
+        const preview = document.getElementById(previewId);
+        preview.innerHTML = '';
+
+        for (const file of this.files) {
+            if (file.size > maxMb * 1024 * 1024) {
+                alert(`Video "${file.name}" berukuran ${(file.size / 1024 / 1024).toFixed(1)} MB, melebihi batas ${maxMb} MB. Kecilkan ukuran video atau pilih video lain.`);
+                this.value = '';
+                preview.innerHTML = '';
+                return;
+            }
+        }
+
+        Array.from(this.files).forEach(file => {
+            preview.innerHTML += `
+                <span class="badge bg-light text-dark border border-secondary-subtle py-2 px-3 me-2 mb-2">
+                    <i class="bi bi-film text-danger me-1"></i> ${file.name}
+                    <span class="ms-1 text-muted fw-normal">(${(file.size / 1024 / 1024).toFixed(1)} MB)</span>
+                </span>`;
+        });
+    });
+}
+
+bindImagePreview('input[name="photos[]"]', 'photoPreview', MAX_PHOTOS, MAX_PHOTO_MB);
+bindImagePreview('input[name="attendance_media[]"]', 'attendancePreview', MAX_ATTENDANCE, MAX_PHOTO_MB);
+bindVideoPreview('input[name="videos[]"]', 'videoPreview', MAX_VIDEO_MB);
+
+// safety belt terakhir: cegah submit jika ada file over-size yang lolos
+document.getElementById('reportForm').addEventListener('submit', function (e) {
+    const checks = [
+        [this.querySelector('input[name="videos[]"]'), MAX_VIDEO_MB],
+        [this.querySelector('input[name="photos[]"]'), MAX_PHOTO_MB],
+        [this.querySelector('input[name="attendance_media[]"]'), MAX_PHOTO_MB],
+    ];
+    for (const [input, maxMb] of checks) {
+        if (!input || !input.files) continue;
+        for (const file of input.files) {
+            if (file.size > maxMb * 1024 * 1024) {
+                e.preventDefault();
+                alert(`File "${file.name}" melebihi batas ${maxMb} MB — laporan belum terkirim.`);
+                return;
+            }
+        }
+    }
+});
+</script>
 @endsection

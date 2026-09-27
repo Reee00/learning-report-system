@@ -25,7 +25,8 @@ class RoleRedirectTest extends TestCase
             'password' => 'password',
         ]);
 
-        $response->assertRedirectToRoute('admin.schools.index');
+        // Meeting 2026-09 req. B: Relation mendarat di dashboard operasional.
+        $response->assertRedirectToRoute('admin.dashboard');
     }
 
     public function test_superadmin_can_login_through_the_compatibility_dashboard(): void

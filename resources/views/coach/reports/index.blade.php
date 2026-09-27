@@ -13,6 +13,71 @@
         </a>
     </div>
 
+    {{-- Reminder laporan dari Relation/PIC (Meeting 2026-09 req. D) --}}
+    @php
+        $unreadReminders = auth()->user()->unreadNotifications->where('type', \App\Notifications\ReportReminderNotification::class);
+    @endphp
+    @foreach($unreadReminders as $notification)
+        @php $data = $notification->data; @endphp
+        <div class="alert alert-warning shadow-sm border-0 d-flex align-items-start mb-3">
+            <i class="bi bi-bell-fill fs-5 me-3 mt-1"></i>
+            <div class="flex-grow-1">
+                <strong class="d-block mb-1">
+                    Reminder Laporan dari {{ $data['sender_role'] ?? 'Tim' }}: {{ $data['sender_name'] ?? '' }}
+                </strong>
+                <span class="d-block text-dark small">
+                    Ada {{ $data['missing_count'] ?? 0 }} sesi mengajar yang belum memiliki laporan. Segera submit laporan Anda.
+                </span>
+                @if(!empty($data['message']))
+                    <span class="d-block fst-italic small mt-1">"{{ $data['message'] }}"</span>
+                @endif
+            </div>
+            <form method="POST" action="{{ route('coach.notifications.read', $notification->id) }}">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-outline-secondary ms-2" title="Tandai sudah dibaca">
+                    <i class="bi bi-check2"></i>
+                </button>
+            </form>
+        </div>
+    @endforeach
+
+    {{-- Notifikasi operasional custom dari Relation/PIC (audit UX 2026-09-11) --}}
+    @php
+        $customNotifications = auth()->user()->unreadNotifications->where('type', \App\Notifications\CustomNotification::class);
+        $typeStyles = [
+            'schedule'    => ['icon' => 'bi-calendar-week', 'class' => 'alert-primary'],
+            'reminder'    => ['icon' => 'bi-clipboard-check', 'class' => 'alert-warning'],
+            'operational' => ['icon' => 'bi-megaphone', 'class' => 'alert-info'],
+        ];
+    @endphp
+    @foreach($customNotifications as $notification)
+        @php
+            $data = $notification->data;
+            $style = $typeStyles[$data['type'] ?? 'operational'] ?? $typeStyles['operational'];
+        @endphp
+        <div class="alert {{ $style['class'] }} shadow-sm border-0 d-flex align-items-start mb-3">
+            <i class="bi {{ $style['icon'] }} fs-5 me-3 mt-1"></i>
+            <div class="flex-grow-1">
+                <strong class="d-block mb-1">{{ $data['title'] ?? 'Notifikasi' }}</strong>
+                <span class="d-block text-dark small">{{ $data['message'] ?? '' }}</span>
+                <small class="text-muted d-block mt-1">
+                    Dari {{ $data['sender_role'] ?? 'Tim' }}: {{ $data['sender_name'] ?? '' }} &bull; {{ $notification->created_at->diffForHumans() }}
+                </small>
+                @if(!empty($data['action_url']))
+                    <a href="{{ $data['action_url'] }}" class="btn btn-sm btn-outline-primary mt-2">
+                        Lihat Terkait <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                @endif
+            </div>
+            <form method="POST" action="{{ route('coach.notifications.read', $notification->id) }}">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-outline-secondary ms-2" title="Tandai sudah dibaca">
+                    <i class="bi bi-check2"></i>
+                </button>
+            </form>
+        </div>
+    @endforeach
+
     @foreach($reports as $report)
         @include('partials.accident-notes', [
             'notes' => $report->notes,

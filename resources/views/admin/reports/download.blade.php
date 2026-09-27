@@ -109,6 +109,62 @@
         .badge-sick     { background: #fef9c3; color: #854d0e; }
         .badge-permission { background: #e0f2fe; color: #075985; }
 
+        /* ===== Media gallery ===== */
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .media-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .media-item img {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        .media-caption {
+            font-size: 10px;
+            color: #555;
+            padding: 5px 8px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            /* "break-word", bukan "break-all": nama file panjang tetap
+               terpotong, tetapi angka pendek ("10", "2026") tidak pernah
+               dipecah antar digit. */
+            overflow-wrap: break-word;
+            word-break: normal;
+        }
+        /* Placeholder poster untuk video — tidak bisa di-embed playable di PDF. */
+        .video-poster {
+            position: relative;
+            aspect-ratio: 16 / 9;
+            background: #1e293b;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #cbd5e1;
+        }
+        .video-poster .play-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #2563eb;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            margin-bottom: 6px;
+        }
+        .video-poster .video-label { font-size: 10px; letter-spacing: .5px; text-transform: uppercase; }
+
         /* ===== Approval stamp ===== */
         .approval-row {
             display: flex;
@@ -143,6 +199,7 @@
             body { padding: 12px 16px; }
             .no-print { display: none !important; }
             a { text-decoration: none; color: inherit; }
+            .media-item { break-inside: avoid; page-break-inside: avoid; }
         }
     </style>
 </head>
@@ -153,9 +210,19 @@
     <button onclick="window.print()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:600;">
         🖨 Cetak / Simpan PDF
     </button>
-    <button onclick="window.history.back()" style="margin-left:8px;background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:600;">
+    {{-- Kembali: kembali ke daftar laporan yang sesuai konteks pengirim,
+         bukan history.back() yang bisa keluar dari alur laporan. --}}
+    @php
+        $backUrl = match ($backTo ?? null) {
+            'pic'      => route('pic.dashboard'),
+            'coach'    => route('coach.reports.index'),
+            'admin'    => route('admin.reports.index'),
+            default    => url()->previous() !== url()->current() ? url()->previous() : route('admin.reports.index'),
+        };
+    @endphp
+    <a href="{{ $backUrl }}" style="margin-left:8px;background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:6px;padding:8px 20px;font-size:13px;text-decoration:none;font-weight:600;display:inline-block;">
         ← Kembali
-    </button>
+    </a>
 </div>
 
 {{-- ===== Header ===== --}}
@@ -197,11 +264,17 @@
 <div class="section-title">Materi Pelajaran</div>
 <div class="text-block">{{ $report->lesson_material }}</div>
 
-{{-- ===== Ringkasan Kegiatan ===== --}}
-<div class="section-title">Ringkasan Kegiatan</div>
-<div class="text-block">{{ $report->activity_summary }}</div>
+{{-- ===== Goals Materi (Meeting 2026-09 req. F) ===== --}}
+@if($report->goals_materi)
+<div class="section-title">Goals Materi</div>
+<div class="text-block">{{ $report->goals_materi }}</div>
+@endif
 
-{{-- ===== Absensi ===== --}}
+{{-- ===== Activity Report (Meeting 2026-09 req. F) ===== --}}
+<div class="section-title">Activity Report</div>
+<div class="text-block">{{ $report->activity_report }}</div>
+
+<!-- {{-- ===== Absensi ===== --}}
 @if($report->attendances->count() > 0)
 <div class="section-title">Absensi Siswa ({{ $report->attendances->count() }} siswa)</div>
 <table>
@@ -230,29 +303,71 @@
         @endforeach
     </tbody>
 </table>
+@endif -->
+
+{{-- ===== Media terlampir =====
+     Foto & bukti absensi dirender inline (dilayani lewat route
+     /media/{id} yang meng-autorisasi per laporan). Video tidak bisa
+     di-embed playable pada PDF — dirender sebagai poster + referensi file. --}}
+@php
+    $photos = $report->media->where('type', 'photo')->values();
+    $videos = $report->media->where('type', 'video')->values();
+    $attendance = $report->media->where('type', 'attendance')->values();
+@endphp
+
+@if($photos->count() > 0)
+<div class="section-title">Foto Kegiatan ({{ $photos->count() }})</div>
+<div class="media-grid">
+    @foreach($photos as $photo)
+    <figure class="media-item">
+        <img src="{{ $photo->url() }}" alt="{{ $photo->original_name ?? 'Foto kegiatan' }}">
+        @if($photo->original_name)
+        <figcaption class="media-caption">{{ $photo->original_name }}</figcaption>
+        @endif
+    </figure>
+    @endforeach
+</div>
 @endif
 
-{{-- ===== Media info (not rendered inline for security, listed by filename) ===== --}}
-@php
-    $photos = $report->media->where('type', 'photo');
-    $videos = $report->media->where('type', 'video');
-@endphp
-@if($photos->count() > 0 || $videos->count() > 0)
+@if($attendance->count() > 0)
+<div class="section-title">Bukti Absensi ({{ $attendance->count() }})</div>
+<div class="media-grid">
+    @foreach($attendance as $media)
+    <figure class="media-item">
+        <img src="{{ $media->url() }}" alt="{{ $media->original_name ?? 'Bukti absensi' }}">
+        @if($media->original_name)
+        <figcaption class="media-caption">{{ $media->original_name }}</figcaption>
+        @endif
+    </figure>
+    @endforeach
+</div>
+@endif
+
+@if($videos->count() > 0)
+<div class="section-title">Video Kegiatan ({{ $videos->count() }})</div>
+<div class="media-grid">
+    @foreach($videos as $video)
+    <figure class="media-item">
+        <div class="video-poster">
+            <div class="play-icon">▶</div>
+            <div class="video-label">File Video</div>
+        </div>
+        <figcaption class="media-caption">
+            🎬 {{ $video->original_name ?? basename($video->path) }}
+            — video tersimpan pada sistem, tidak dapat diputar di dokumen cetak.
+        </figcaption>
+    </figure>
+    @endforeach
+</div>
+@endif
+
+@if($photos->isEmpty() && $videos->isEmpty() && $attendance->isEmpty())
 <div class="section-title">Media Terlampir</div>
-<dl class="info-grid">
-    @if($photos->count() > 0)
-    <dt>Foto ({{ $photos->count() }})</dt>
-    <dd>{{ $photos->pluck('original_name')->filter()->implode(', ') ?: $photos->count() . ' file foto' }}</dd>
-    @endif
-    @if($videos->count() > 0)
-    <dt>Video ({{ $videos->count() }})</dt>
-    <dd>{{ $videos->pluck('original_name')->filter()->implode(', ') ?: $videos->count() . ' file video' }}</dd>
-    @endif
-</dl>
+<p style="color:#999;">Tidak ada media terlampir pada laporan ini.</p>
 @endif
 
 {{-- ===== Approval stamp ===== --}}
-<div class="approval-row">
+<!-- <div class="approval-row">
     <div class="approval-box">
         <div class="label">Coach</div>
         <div class="sign-line"></div>
@@ -262,7 +377,7 @@
         <div class="label">Disetujui oleh Relation</div>
         <div class="sign-line"></div>
         <div class="name">{{ $report->approvedBy?->name ?? '-' }}</div>
-    </div>
+    </div> -->
 </div>
 
 {{-- ===== Footer ===== --}}

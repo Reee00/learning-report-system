@@ -4,12 +4,16 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\School;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
+    public function __construct(private ActivityLogService $activityLog)
+    {
+    }
     // Daftar semua akun
     public function index(Request $request)
     {
@@ -66,6 +70,16 @@ class UserController extends Controller
 
         $user->schools()->sync($isSchoolScoped ? $schoolIds : []);
 
+        $this->activityLog->log(
+            auth()->user(),
+            'user.created',
+            'user',
+            $user->id,
+            "Akun dibuat: {$user->name} ({$user->role})",
+            ['email' => $user->email, 'role' => $user->role, 'school_ids' => $schoolIds],
+            $request,
+        );
+
         return back()->with('success', 'Akun berhasil dibuat!');
     }
 
@@ -99,6 +113,16 @@ class UserController extends Controller
 
         $user->schools()->sync($isSchoolScoped ? $schoolIds : []);
 
+        $this->activityLog->log(
+            auth()->user(),
+            'user.updated',
+            'user',
+            $user->id,
+            "Akun diperbarui: {$user->name} ({$user->role})",
+            ['email' => $user->email, 'role' => $user->role, 'school_ids' => $schoolIds],
+            $request,
+        );
+
         return back()->with('success', 'Akun berhasil diperbarui!');
     }
 
@@ -113,11 +137,20 @@ class UserController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        $this->activityLog->log(
+            auth()->user(),
+            'user.password_reset',
+            'user',
+            $user->id,
+            "Password direset untuk akun {$user->name}",
+            request: $request,
+        );
+
         return back()->with('success', "Password akun {$user->name} berhasil direset!");
     }
 
     // Hapus akun
-    public function destroy(User $user)
+    public function destroy(Request $request, User $user)
     {
         // Cegah user yang sedang login menghapus akunnya sendiri
         if ($user->id === auth()->id()) {
@@ -132,6 +165,16 @@ class UserController extends Controller
                 "Akun {$user->name} tidak bisa dihapus karena masih memiliki laporan. Nonaktifkan penugasan kelasnya sebagai gantinya."
             );
         }
+
+        $this->activityLog->log(
+            auth()->user(),
+            'user.deleted',
+            'user',
+            $user->id,
+            "Akun dihapus: {$user->name} ({$user->role})",
+            ['email' => $user->email, 'role' => $user->role],
+            $request,
+        );
 
         $user->delete();
         return back()->with('success', 'Akun berhasil dihapus.');

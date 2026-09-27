@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CoachClass;
 use App\Models\SchoolClass;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use App\Services\AuthorizationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -13,8 +14,10 @@ use Illuminate\Validation\Rule;
 
 class CoachController extends Controller
 {
-    public function __construct(private AuthorizationService $authorization)
-    {
+    public function __construct(
+        private AuthorizationService $authorization,
+        private ActivityLogService $activityLog,
+    ) {
     }
 
     public function index(Request $request)
@@ -118,6 +121,16 @@ class CoachController extends Controller
             return back()->with('error', 'Coach sudah di-assign ke kelas ini.');
         }
 
+        $this->activityLog->log(
+            $request->user(),
+            'coach.assigned',
+            'coach_class',
+            $assignment->id,
+            "Coach {$coach->name} di-assign ke kelas {$class->name} ({$class->school->name})",
+            ['coach_id' => $coach->id, 'class_id' => $class->id, 'school_id' => $class->school_id],
+            $request,
+        );
+
         return back()->with('success', 'Kelas berhasil di-assign ke Coach.');
     }
 
@@ -130,6 +143,15 @@ class CoachController extends Controller
             $assignment->coach_id === $coach->id,
             403,
             'Assignment tidak dimiliki Coach ini.'
+        );
+
+        $this->activityLog->log(
+            request()->user(),
+            'coach.unassigned',
+            'coach_class',
+            $assignment->id,
+            "Assignment coach {$coach->name} ke kelas #{$assignment->class_id} dihapus",
+            ['coach_id' => $coach->id, 'class_id' => $assignment->class_id],
         );
 
         $assignment->delete();

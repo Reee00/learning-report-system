@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SchoolClass;
+use App\Models\TeachingSchedule;
 use App\Models\User;
 
 class AuthorizationService
@@ -13,6 +14,7 @@ class AuthorizationService
      */
     private const ROLE_PERMISSIONS = [
         'relation' => [
+            'dashboard.view',
             'schools.view',
             'schools.create',
             'schools.update',
@@ -33,6 +35,15 @@ class AuthorizationService
             'reports.view_all',
             'reports.review',
             'reports.download',
+            'reports.remind',
+            'notifications.send',
+            'schedules.view',
+            'schedules.manage',
+            // Relation bertindak operasional-global: boleh assign coach ke
+            // kelas (re-use arsitektur CoachClass yang sama dengan SPV Coach).
+            'coaches.view',
+            'coaches.assign',
+            'coaches.reassign',
         ],
         'spv_coach' => [
             'dashboard.view',
@@ -54,12 +65,17 @@ class AuthorizationService
             'students.view',
             'students.create',
             'accident_notes.view',
+            'schedules.view',
         ],
         'school_pic' => [
             'attendance.view',
             'attendance.export',
             'reports.view_all',
             'reports.download',
+            'reports.remind',
+            'notifications.send',
+            'schedules.view',
+            'schedules.manage',
             'students.view',
         ],
         'teacher_school' => [
@@ -111,14 +127,76 @@ class AuthorizationService
     }
 
     /**
+     * Boleh menulis laporan untuk kelas ini?
+     *
+     * Dua sumber kewenangan coach, dan hanya dua:
+     *
+     * 1. Penugasan PERMANEN lewat `coach_classes` — perilaku lama, berlaku
+     *    untuk tanggal mana pun.
+     * 2. Penugasan SEMENTARA lewat sesi mengajar (`teaching_schedules`),
+     *    sebagai coach utama maupun coach tambahan, TANPA mengubah
+     *    `coach_classes`. Coach yang ditarik dari sesi kehilangan akses ini,
+     *    tetapi laporan yang sudah dibuat tetap tersimpan.
+     *
+     * Penugasan sementara sengaja TIDAK melihat is_active: menonaktifkan sesi
+     * menghapus KEWAJIBAN laporan, bukan IZIN menulisnya — kalau tidak, coach
+     * yang sesinya dinonaktifkan belakangan akan terkunci dari laporannya
+     * sendiri.
+     *
+     * `$reportDate` (bila diisi) mengikat izin sementara ke sesi pada tanggal
+     * itu saja, sehingga coach tambahan tidak mendapat akses ke seluruh kelas.
+     */
+    public function canReportOnClass(User $user, SchoolClass $class, ?string $reportDate = null): bool
+    {
+        if ($user->role !== User::ROLE_COACH) {
+            return $this->canAccessClass($user, $class);
+        }
+
+        if ($user->coachClasses()->where('class_id', $class->id)->exists()) {
+            return true;
+        }
+
+        $sessions = TeachingSchedule::query()
+            ->where('class_id', $class->id)
+            ->forCoach($user->id);
+
+        if ($reportDate !== null) {
+            $sessions->whereDate('session_date', $reportDate);
+        }
+
+        return $sessions->exists();
+    }
+
+    /**
+     * Boleh melihat daftar siswa sebuah kelas?
+     *
+     * Dipakai endpoint roster yang dibutuhkan form laporan. Sengaja TERPISAH
+     * dari canAccessClass supaya coach tambahan bisa mengisi absensi kelas yang
+     * dia ajar tanpa ikut membuka wewenang pengelolaan siswa (tambah/hapus),
+     * dan tanpa memberi akses ke sekolah secara global.
+     */
+    public function canViewClassRoster(User $user, SchoolClass $class): bool
+    {
+        return $this->canAccessClass($user, $class)
+            || $this->canReportOnClass($user, $class);
+    }
+
+    /**
      * Null means operational-global scope; an empty array means no assigned
-     * school scope. This distinction prevents Finance/PIC from falling back
-     * to all schools when no plotting exists.
+     * school scope. This distinction prevents PIC from falling back to all
+     * schools when no plotting exists.
+     *
+     * Finance is deliberately global: the final business requirement is
+     * all-school attendance visibility, so Finance must NOT be narrowed by
+     * school plotting. Finance tetap dibatasi oleh status approval di
+     * AttendanceScopeService, bukan oleh sekolah.
      */
     public function accessibleSchoolIds(User $user): ?array
     {
-        if ($user->isSuperAdmin() || $user->isRelationUser() || $user->role === User::ROLE_SPV_COACH
-            || $user->role === User::ROLE_COACH) {
+        if ($user->isSuperAdmin() || $user->isRelationUser()
+            || $user->role === User::ROLE_SPV_COACH
+            || $user->role === User::ROLE_COACH
+            || $user->role === User::ROLE_FINANCE) {
             return null;
         }
 

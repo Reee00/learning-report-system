@@ -72,7 +72,7 @@ class CoachReportDownloadTest extends TestCase
             'class_id'         => $this->classA->id,
             'report_date'      => '2026-08-01',
             'lesson_material'  => 'Materi Tes',
-            'activity_summary' => 'Ringkasan Tes',
+            'activity_summary' => 'Ringkasan Tes', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
         ];
 
         $this->approvedReport = Report::create(array_merge($base, [
@@ -109,7 +109,7 @@ class CoachReportDownloadTest extends TestCase
     }
 
     // =====================================================================
-    // APPROVED report — roles that SHOULD succeed
+    // APPROVED report â€” roles that SHOULD succeed
     // =====================================================================
 
     public function test_superadmin_can_download_approved_report(): void
@@ -156,7 +156,7 @@ class CoachReportDownloadTest extends TestCase
     }
 
     // =====================================================================
-    // APPROVED report — roles / scopes that SHOULD be DENIED
+    // APPROVED report â€” roles / scopes that SHOULD be DENIED
     // =====================================================================
 
     public function test_finance_cannot_download_via_admin_route(): void
@@ -184,7 +184,7 @@ class CoachReportDownloadTest extends TestCase
     }
 
     // =====================================================================
-    // NON-APPROVED statuses — all roles should be denied
+    // NON-APPROVED statuses â€” all roles should be denied
     // =====================================================================
 
     public function test_submitted_report_cannot_be_downloaded_by_superadmin(): void

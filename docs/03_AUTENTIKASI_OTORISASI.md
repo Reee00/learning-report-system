@@ -7,6 +7,7 @@ Login dan logout menggunakan session authentication Laravel. Route terlindungi o
 School scope:
 - SuperAdmin, Relation, SPV Coach: global operasional.
 - Coach: report milik sendiri dan class yang ada pada `coach_classes`.
-- PIC DK SCHOOL, TEACHER SCHOOL, Finance: school yang diplot melalui pivot `school_user`, ditambah `users.school_id` legacy; report/attendance yang ditampilkan harus approved.
+- PIC DK SCHOOL, TEACHER SCHOOL: school yang diplot melalui pivot `school_user`, ditambah `users.school_id` legacy; report/attendance yang ditampilkan harus approved.
+- Finance: **all-school**. Scope-nya datang dari role (`AuthorizationService::accessibleSchoolIds` mengembalikan null), bukan dari plot sekolah; satu-satunya pembatasnya adalah report `approved`. Finance tidak termasuk `User::schoolScopedRoles()`, jadi form akun tidak meminta plot sekolah untuk role ini.
 
 Scope selalu diperiksa di backend. `admin/*` bukan bukti adanya role `admin`.

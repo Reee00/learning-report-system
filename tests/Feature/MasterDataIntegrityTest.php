@@ -58,7 +58,7 @@ class MasterDataIntegrityTest extends TestCase
             'class_id' => $class->id,
             'report_date' => '2026-08-17',
             'lesson_material' => 'Materi',
-            'activity_summary' => 'Ringkasan',
+            'activity_summary' => 'Ringkasan', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
             'status' => 'submitted',
         ]);
 
@@ -133,15 +133,15 @@ class MasterDataIntegrityTest extends TestCase
             ->assertSee('Finance');
     }
 
-    public function test_finance_plotting_is_visible_in_user_management(): void
+    public function test_school_plotting_is_visible_in_user_management(): void
     {
-        $finance = User::create([
-            'name' => 'Finance User',
-            'email' => 'finance@test.test',
+        $pic = User::create([
+            'name' => 'PIC User',
+            'email' => 'pic.plot@test.test',
             'password' => Hash::make('password'),
-            'role' => User::ROLE_FINANCE,
+            'role' => User::ROLE_SCHOOL_PIC,
         ]);
-        $finance->schools()->sync([$this->school->id]);
+        $pic->schools()->sync([$this->school->id]);
 
         // The school name also appears inside the plotting <select>, so assert on
         // the plotting badge itself to prove the scope column is populated.
@@ -149,6 +149,16 @@ class MasterDataIntegrityTest extends TestCase
             ->get(route('admin.users.index'))
             ->assertOk()
             ->assertSee('School A', false);
+    }
+
+    /**
+     * Finance sudah all-school, jadi plotting tidak lagi relevan untuk role
+     * ini: fieldnya tidak boleh diminta lagi di form akun.
+     */
+    public function test_finance_is_not_a_school_scoped_role(): void
+    {
+        $this->assertNotContains(User::ROLE_FINANCE, User::schoolScopedRoles());
+        $this->assertFalse((new User(['role' => User::ROLE_FINANCE]))->isSchoolScoped());
     }
 
     public function test_navbar_role_badge_uses_the_canonical_role_label(): void

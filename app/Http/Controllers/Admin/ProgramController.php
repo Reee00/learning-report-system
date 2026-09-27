@@ -6,14 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Models\Program;
 use App\Models\SchoolClass;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use App\Services\AuthorizationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ProgramController extends Controller
 {
-    public function __construct(private AuthorizationService $authorization)
-    {
+    public function __construct(
+        private AuthorizationService $authorization,
+        private ActivityLogService $activityLog,
+    ) {
     }
 
     public function index(Request $request)
@@ -50,7 +53,7 @@ class ProgramController extends Controller
             'class_ids.*' => ['integer', 'distinct', 'exists:classes,id'],
         ]);
 
-        DB::transaction(function () use ($validated): void {
+        DB::transaction(function () use ($request, $validated): void {
             $program = Program::create([
                 'name' => $validated['name'],
                 'code' => $validated['code'] ?? null,
@@ -59,6 +62,16 @@ class ProgramController extends Controller
             ]);
 
             $program->classes()->sync($validated['class_ids']);
+
+            $this->activityLog->log(
+                $request->user(),
+                'program.created',
+                'program',
+                $program->id,
+                "Program dibuat: {$program->name}",
+                ['code' => $program->code, 'status' => $program->status, 'class_ids' => $validated['class_ids']],
+                $request,
+            );
         });
 
         return back()->with('success', 'Program berhasil ditambahkan.');
@@ -84,7 +97,7 @@ class ProgramController extends Controller
             'class_ids.*' => ['integer', 'distinct', 'exists:classes,id'],
         ]);
 
-        DB::transaction(function () use ($program, $validated): void {
+        DB::transaction(function () use ($request, $program, $validated): void {
             $program->update([
                 'name' => $validated['name'],
                 'code' => $validated['code'] ?? null,
@@ -93,12 +106,22 @@ class ProgramController extends Controller
             ]);
 
             $program->classes()->sync($validated['class_ids']);
+
+            $this->activityLog->log(
+                $request->user(),
+                'program.updated',
+                'program',
+                $program->id,
+                "Program diperbarui: {$program->name}",
+                ['code' => $program->code, 'status' => $program->status, 'class_ids' => $validated['class_ids']],
+                $request,
+            );
         });
 
         return back()->with('success', 'Program berhasil diperbarui.');
     }
 
-    public function destroy(Program $program)
+    public function destroy(Request $request, Program $program)
     {
         $this->ensurePermission('programs.delete');
 
@@ -108,6 +131,15 @@ class ProgramController extends Controller
         if ($program->programClasses()->exists()) {
             return back()->with('error', 'Program tidak bisa dihapus karena masih digunakan oleh kelas/sekolah. Lepaskan dari kelas terlebih dahulu.');
         }
+
+        $this->activityLog->log(
+            $request->user(),
+            'program.deleted',
+            'program',
+            $program->id,
+            "Program dihapus: {$program->name}",
+            request: $request,
+        );
 
         $program->delete();
         return redirect()->route('admin.programs.index')->with('success', 'Program berhasil dihapus.');

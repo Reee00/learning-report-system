@@ -61,10 +61,16 @@
                         <div class="col-sm-4 text-muted small fw-semibold">Materi Pelajaran</div>
                         <div class="col-sm-8 fw-medium text-dark">{{ $report->lesson_material }}</div>
                     </div>
-                    <div class="row">
-                        <div class="col-sm-4 text-muted small fw-semibold">Ringkasan Kegiatan</div>
+                    <div class="row mb-3 pb-3 border-bottom border-light">
+                        <div class="col-sm-4 text-muted small fw-semibold">Goals Materi</div>
                         <div class="col-sm-8 text-dark bg-light p-3 rounded-3 mt-2 mt-sm-0">
-                            {!! nl2br(e($report->activity_summary)) !!}
+                            {!! nl2br(e($report->goals_materi)) !!}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-4 text-muted small fw-semibold">Activity Report</div>
+                        <div class="col-sm-8 text-dark bg-light p-3 rounded-3 mt-2 mt-sm-0">
+                            {!! nl2br(e($report->activity_report)) !!}
                         </div>
                     </div>
                 </div>
@@ -85,6 +91,32 @@
                         <div class="col-6 col-md-4 col-lg-3">
                             <a href="{{ $photo->url() }}" target="_blank" class="d-block overflow-hidden rounded-3 shadow-sm border border-light position-relative" style="height: 120px;">
                                 <img src="{{ $photo->url() }}" class="w-100 h-100 object-fit-cover" alt="Foto {{ $loop->iteration }}">
+                                <div class="position-absolute bottom-0 start-0 w-100 p-2 text-center" style="background: linear-gradient(transparent, rgba(0,0,0,0.7));">
+                                    <i class="bi bi-zoom-in text-white opacity-75"></i>
+                                </div>
+                            </a>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            @endif
+
+            {{-- GALERI BUKTI ABSENSI (Meeting 2026-09 req. G) --}}
+            @if($report->attendanceMedia->count() > 0)
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3 border-bottom border-light">
+                    <span class="fw-bold fs-6 text-dark">
+                        <i class="bi bi-clipboard-check text-primary me-2"></i> Bukti Absensi
+                        <span class="badge bg-secondary rounded-pill ms-2">{{ $report->attendanceMedia->count() }}</span>
+                    </span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        @foreach($report->attendanceMedia as $att)
+                        <div class="col-6 col-md-4 col-lg-3">
+                            <a href="{{ $att->url() }}" target="_blank" class="d-block overflow-hidden rounded-3 shadow-sm border border-light position-relative" style="height: 120px;">
+                                <img src="{{ $att->url() }}" class="w-100 h-100 object-fit-cover" alt="Bukti Absensi {{ $loop->iteration }}">
                                 <div class="position-absolute bottom-0 start-0 w-100 p-2 text-center" style="background: linear-gradient(transparent, rgba(0,0,0,0.7));">
                                     <i class="bi bi-zoom-in text-white opacity-75"></i>
                                 </div>

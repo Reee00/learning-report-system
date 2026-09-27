@@ -24,28 +24,20 @@ class ReportMedia extends Model
         return $this->type === 'video';
     }
 
-    /**
-     * Get the public/accessible URL for this media.
-     *
-     * For legacy Cloudinary URLs (path starts with http), returns as-is.
-     * For local files, returns a signed route that enforces authorization.
-     */
-    public function url()
+    // Helper: cek apakah file ini bukti kehadiran
+    public function isAttendance(): bool
     {
-        // Legacy Cloudinary URLs — return directly
-        if (str_starts_with($this->path, 'http')) {
-            return $this->path;
-        }
-
-        // Local files — use authorized serve route
-        return route('media.serve', ['media' => $this->id]);
+        return $this->type === 'attendance';
     }
 
     /**
-     * Check whether this media is stored externally (e.g. Cloudinary).
+     * Get the accessible URL for this media.
+     *
+     * Local files are served through the authorized route that enforces
+     * per-report access checks.
      */
-    public function isExternal(): bool
+    public function url()
     {
-        return str_starts_with($this->path, 'http://') || str_starts_with($this->path, 'https://');
+        return route('media.serve', ['media' => $this->id]);
     }
 }

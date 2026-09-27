@@ -100,7 +100,11 @@ class RoleIsolationTest extends TestCase
             $this->actingAs($relation)->get(route($route))->assertOk("Relation needs {$route}.");
         }
 
-        foreach (['admin.users.index', 'admin.coaches.index'] as $route) {
+        // Audit UX 2026-09-11: Relation kini boleh mengelola penugasan coach
+        // (re-use alur SPV Coach) — konsol coach harus bisa diaksesnya.
+        $this->actingAs($relation)->get(route('admin.coaches.index'))->assertOk('Relation needs the coach assignment console.');
+
+        foreach (['admin.users.index'] as $route) {
             $this->actingAs($relation)->get(route($route))->assertForbidden("Relation must not reach {$route}.");
         }
     }
@@ -120,7 +124,8 @@ class RoleIsolationTest extends TestCase
 
     public function test_finance_reaches_attendance_only(): void
     {
-        $finance = $this->user(User::ROLE_FINANCE, true);
+        // Tanpa plot sekolah sama sekali: scope all-school datang dari role.
+        $finance = $this->user(User::ROLE_FINANCE);
 
         $this->actingAs($finance)->get(route('attendance.index'))->assertOk();
 
@@ -209,7 +214,7 @@ class RoleIsolationTest extends TestCase
     {
         $expected = [
             User::ROLE_SUPERADMIN => 'admin.dashboard',
-            User::ROLE_RELATION => 'admin.schools.index',
+            User::ROLE_RELATION => 'admin.dashboard',
             User::ROLE_SPV_COACH => 'admin.coaches.index',
             User::ROLE_COACH => 'coach.reports.index',
             User::ROLE_SCHOOL_PIC => 'pic.dashboard',
@@ -218,7 +223,8 @@ class RoleIsolationTest extends TestCase
         ];
 
         foreach ($expected as $role => $route) {
-            $needsSchool = in_array($role, [User::ROLE_SCHOOL_PIC, User::ROLE_TEACHER_SCHOOL, User::ROLE_FINANCE], true);
+            // Finance tidak butuh plot sekolah: scope-nya all-school dari role.
+            $needsSchool = in_array($role, [User::ROLE_SCHOOL_PIC, User::ROLE_TEACHER_SCHOOL], true);
             $this->user($role, $needsSchool);
 
             $this->post('/login', ['email' => $role.'@test.test', 'password' => 'password'])

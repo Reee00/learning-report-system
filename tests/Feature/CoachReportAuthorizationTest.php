@@ -61,7 +61,7 @@ class CoachReportAuthorizationTest extends TestCase
             'class_id' => $classId,
             'report_date' => '2026-08-17',
             'lesson_material' => 'Materi',
-            'activity_summary' => 'Ringkasan',
+            'activity_summary' => 'Ringkasan', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
             'attendance' => $attendance,
         ];
     }
@@ -111,7 +111,7 @@ class CoachReportAuthorizationTest extends TestCase
             'class_id' => $this->assignedClass->id,
             'report_date' => '2026-08-17',
             'lesson_material' => 'Materi',
-            'activity_summary' => 'Ringkasan',
+            'activity_summary' => 'Ringkasan', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
             'status' => 'draft',
         ]);
         ReportAttendance::create([
@@ -123,7 +123,7 @@ class CoachReportAuthorizationTest extends TestCase
         $response = $this->actingAs($this->coach)->put(route('coach.reports.update', $report), [
             'report_date' => '2026-08-18',
             'lesson_material' => 'Materi',
-            'activity_summary' => 'Ringkasan',
+            'activity_summary' => 'Ringkasan', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
             'attendance' => [$this->foreignStudent->id => 'absent'],
         ]);
 
@@ -148,7 +148,7 @@ class CoachReportAuthorizationTest extends TestCase
             'class_id' => $this->foreignClass->id,
             'report_date' => '2026-08-17',
             'lesson_material' => 'Rahasia',
-            'activity_summary' => 'Rahasia',
+            'activity_summary' => 'Rahasia', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
             'status' => 'submitted',
         ]);
 

@@ -73,6 +73,8 @@
                         <th class="text-secondary fw-semibold text-center" style="width: 50px;">#</th>
                         <th class="text-secondary fw-semibold">Nama Program Kelas</th>
                         <th class="text-secondary fw-semibold">Sekolah</th>
+                        <th class="text-secondary fw-semibold">Program</th>
+                        <th class="text-secondary fw-semibold">Digunakan di</th>
                         @if($hasClassActions)
                             <th class="text-center text-secondary fw-semibold" style="width: 200px;">Aksi</th>
                         @endif
@@ -86,13 +88,33 @@
                             <div class="fw-bold text-dark">{{ $class->name }}</div>
                         </td>
                         <td>
-                            <span class="badge bg-light text-dark border border-secondary-subtle px-2 py-1">
+                            <a href="{{ route('admin.schools.show', $class->school) }}"
+                               class="badge bg-light text-dark border border-secondary-subtle px-2 py-1 text-decoration-none"
+                               title="Buka workspace sekolah">
                                 <i class="bi bi-building text-muted me-1"></i> {{ $class->school->name }}
+                            </a>
+                        </td>
+                        <td>
+                            @forelse($class->programs->sortBy('name') as $program)
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1 mb-1">{{ $program->name }}</span>
+                            @empty
+                                <span class="small text-muted fst-italic">Belum ada</span>
+                            @endforelse
+                        </td>
+                        <td class="small text-muted">
+                            <span class="badge bg-light text-dark border me-1 mb-1">
+                                <i class="bi bi-people me-1"></i>{{ $class->students_count }} murid
+                            </span>
+                            <span class="badge bg-light text-dark border me-1 mb-1">
+                                <i class="bi bi-calendar3 me-1"></i>{{ $class->teaching_schedules_count }} jadwal
+                            </span>
+                            <span class="badge bg-light text-dark border mb-1">
+                                <i class="bi bi-file-earmark-text me-1"></i>{{ $class->reports_count }} laporan
                             </span>
                         </td>
                         @if($hasClassActions)
                             <td>
-                                <div class="d-flex justify-content-center gap-2">
+                                <div class="d-flex justify-content-center gap-2 flex-wrap">
                                     @if($canViewStudents)
                                         <a href="{{ route('students.show', $class) }}" class="btn btn-sm btn-light border text-info rounded-pill px-3" title="Kelola Siswa">
                                             <i class="bi bi-people-fill me-1"></i> Siswa
@@ -104,7 +126,7 @@
                                         </button>
                                     @endif
                                     @if($canDeleteClass)
-                                        <button type="button" onclick="confirmAction('{{ route('admin.classes.destroy', $class) }}', 'Apakah Anda yakin ingin menghapus kelas ini? Semua data siswa yang ada di kelas ini akan ikut terhapus.')" class="btn btn-sm btn-light border text-danger rounded-pill px-3" title="Hapus Kelas">
+                                        <button type="button" onclick="confirmAction('{{ route('admin.classes.destroy', $class) }}', 'Hapus kelas {{ $class->name }}? Kelas yang masih memiliki murid, laporan, atau jadwal akan ditolak oleh sistem.')" class="btn btn-sm btn-light border text-danger rounded-pill px-3" title="Hapus Kelas">
                                             <i class="bi bi-trash-fill"></i>
                                         </button>
                                     @endif
@@ -150,7 +172,7 @@
                     @endif
                 @empty
                     <tr>
-                        <td colspan="{{ $hasClassActions ? 4 : 3 }}" class="text-center py-5">
+                        <td colspan="{{ $hasClassActions ? 6 : 5 }}" class="text-center py-5">
                             <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" alt="No Data" width="64" class="opacity-50 mb-3">
                             <h6 class="text-muted mb-0">Belum ada program kelas.</h6>
                         </td>

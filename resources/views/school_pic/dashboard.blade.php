@@ -47,6 +47,60 @@
         </div>
     </div>
 
+    {{-- Coach yang belum menyelesaikan laporan (Meeting 2026-09 req. D) --}}
+    @if($overdueCoaches->count() > 0)
+    <div class="card mb-4 border-0 shadow-sm border-start border-warning border-4">
+        <div class="card-header bg-white py-3 border-bottom border-light d-flex align-items-center">
+            <span class="fw-bold fs-6 text-dark"><i class="bi bi-bell-fill text-warning me-2"></i> Coach Belum Menyelesaikan Laporan</span>
+            <span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-2">{{ $overdueCoaches->count() }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-secondary fw-semibold ps-4">Coach</th>
+                            <th class="text-secondary fw-semibold text-center" style="width: 200px;">Sesi Tanpa Laporan</th>
+                            <th class="text-secondary fw-semibold text-center" style="width: 150px;">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($overdueCoaches as $coach)
+                        <tr>
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-light text-primary rounded-circle d-flex align-items-center justify-content-center me-2 fw-bold" style="width: 28px; height: 28px; font-size: 12px;">
+                                        {{ substr($coach->name, 0, 1) }}
+                                    </div>
+                                    <span class="fw-medium">{{ $coach->name }}</span>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                                    {{ $coach->missing_sessions_count }} sesi
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <form method="POST" action="{{ route('pic.remind') }}"
+                                      class="d-inline"
+                                      onsubmit="const msg = prompt('Pesan tambahan untuk {{ $coach->name }} (opsional):'); if (msg === null) return false; this.querySelector('input[name=message]').value = msg;">
+                                    @csrf
+                                    <input type="hidden" name="coach_id" value="{{ $coach->id }}">
+                                    <input type="hidden" name="message" value="">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3">
+                                        <i class="bi bi-bell me-1"></i> Ingatkan
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    @endif
+
     {{-- Filter --}}
     <div class="card mb-4 shadow-sm border-0">
         <div class="card-body p-4">
@@ -60,6 +114,21 @@
                             @foreach($classes as $class)
                                 <option value="{{ $class->id }}" {{ request('class_id') == $class->id ? 'selected' : '' }}>
                                     {{ $class->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                {{-- Meeting 2026-09 req. C: filter laporan berdasarkan coach yang mengajar di sekolah plot-nya --}}
+                <div class="col-md-3">
+                    <label class="form-label text-muted small fw-semibold">Pilih Coach</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white text-muted border-end-0"><i class="bi bi-person-badge"></i></span>
+                        <select name="coach_id" class="form-select border-start-0 ps-0">
+                            <option value="">Semua Coach</option>
+                            @foreach($coaches as $coach)
+                                <option value="{{ $coach->id }}" {{ request('coach_id') == $coach->id ? 'selected' : '' }}>
+                                    {{ $coach->name }}
                                 </option>
                             @endforeach
                         </select>

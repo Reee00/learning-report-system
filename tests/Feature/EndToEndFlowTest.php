@@ -133,7 +133,8 @@ class EndToEndFlowTest extends TestCase
                 'class_id' => $class->id,
                 'report_date' => '2026-08-17',
                 'lesson_material' => 'Pengenalan algoritma',
-                'activity_summary' => "Baris pertama\nBaris kedua",
+                'goals_materi' => "Goals:\n- Memahami algoritma dasar.",
+                'activity_report' => "Baris pertama\nBaris kedua",
                 'notes' => 'Bela terjatuh saat istirahat dan sudah ditangani UKS.',
                 'attendance' => $attendance,
             ])
@@ -182,8 +183,24 @@ class EndToEndFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Accident Notes');
 
+        // UX 2026-09-13: drill-down Attendance → Sekolah → Kelas → Tanggal → Murid.
         $this->actingAs($pic)
             ->get(route('attendance.index'))
+            ->assertOk()
+            ->assertSee('SD Nusantara');
+
+        $this->actingAs($pic)
+            ->get(route('attendance.school', $school))
+            ->assertOk()
+            ->assertSee('Grade 6A');
+
+        $this->actingAs($pic)
+            ->get(route('attendance.class', [$school, $class]))
+            ->assertOk()
+            ->assertSee('17 Aug 2026');
+
+        $this->actingAs($pic)
+            ->get(route('attendance.session', $report))
             ->assertOk()
             ->assertSee('Andi');
 
@@ -213,9 +230,9 @@ class EndToEndFlowTest extends TestCase
             ->assertRedirectToRoute('attendance.index');
 
         $this->actingAs($finance)
-            ->get(route('attendance.index', ['school_id' => $school->id, 'attendance_status' => 'sick']))
+            ->get(route('attendance.index'))
             ->assertOk()
-            ->assertSee('Bela');
+            ->assertSee('SD Nusantara');
 
         $financeCsv = $this->actingAs($finance)
             ->get(route('attendance.export', ['school_id' => $school->id, 'attendance_status' => 'sick']))

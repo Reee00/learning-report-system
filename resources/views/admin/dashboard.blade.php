@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', auth()->user()->role === 'superadmin' ? 'SuperAdmin Dashboard' : 'Relation Dashboard')
+@section('title', auth()->user()->isSuperAdmin() ? 'SuperAdmin Dashboard' : 'Relation Dashboard')
 
 @section('content')
 <div class="container-fluid">
@@ -9,7 +9,7 @@
             <i class="bi bi-grid-fill fs-4"></i>
         </div>
         <div>
-            <h4 class="mb-1 fw-bold text-dark">{{ auth()->user()->role === 'superadmin' ? 'SuperAdmin' : 'Relation' }} Dashboard</h4>
+            <h4 class="mb-1 fw-bold text-dark">{{ auth()->user()->isSuperAdmin() ? 'SuperAdmin' : 'Relation' }} Dashboard</h4>
             <span class="text-muted small">Ringkasan operasional dan aktivitas laporan belajar</span>
         </div>
     </div>

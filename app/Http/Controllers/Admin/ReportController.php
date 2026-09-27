@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Report;
 use App\Models\School;
+use App\Models\SchoolClass;
+use App\Models\TeachingSchedule;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use App\Services\AuthorizationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,28 +15,45 @@ use Illuminate\Support\Str;
 
 class ReportController extends Controller
 {
-    public function __construct(private AuthorizationService $authorization)
-    {
+    public function __construct(
+        private AuthorizationService $authorization,
+        private ActivityLogService $activityLog,
+    ) {
     }
 
     public function index(Request $request)
     {
+        $user = $this->actingUser();
         $query = Report::with(['coach', 'school', 'schoolClass'])->latest();
 
         // School scope diterapkan sebelum filter dari request, sehingga filter
         // school_id hanya bisa mempersempit scope dan tidak bisa melewatinya.
-        $accessibleSchoolIds = $this->authorization->accessibleSchoolIds($this->actingUser());
+        $accessibleSchoolIds = $this->authorization->accessibleSchoolIds($user);
         if ($accessibleSchoolIds !== null) {
             $query->whereIn('school_id', $accessibleSchoolIds);
+        }
+
+        // Teacher School hanya boleh melihat laporan yang sudah disetujui;
+        // filter status dari request diabaikan supaya tidak bisa dipakai
+        // membocorkan laporan ditolak/perlu diperbaiki (meeting 2026-09 req. A).
+        $approvedOnly = $user->role === User::ROLE_TEACHER_SCHOOL;
+        if ($approvedOnly) {
+            $query->where('status', 'approved');
+        } elseif ($request->filled('status')) {
+            $query->where('status', $request->status);
         }
 
         // Filter berdasarkan sekolah
         if ($request->filled('school_id')) {
             $query->where('school_id', $request->school_id);
         }
-        // Filter berdasarkan status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        // Filter kelas & coach: keduanya hanya mempersempit, tidak pernah
+        // melebarkan — scope sekolah di atas sudah lebih dulu diterapkan.
+        if ($request->filled('class_id')) {
+            $query->where('class_id', $request->class_id);
+        }
+        if ($request->filled('coach_id')) {
+            $query->where('coach_id', $request->coach_id);
         }
         // Filter berdasarkan tanggal
         if ($request->filled('date_from')) {
@@ -43,7 +63,27 @@ class ReportController extends Controller
             $query->whereDate('report_date', '<=', $request->date_to);
         }
 
-        $reports = $query->paginate(20)->withQueryString();
+        // Arsip historis: satu sekolah bisa punya ratusan laporan, dan
+        // pengelompokan Sekolah → Kelas dibangun per halaman. Pilihan jumlah
+        // per halaman membuat riwayat satu sekolah bisa dilihat utuh tanpa
+        // berpindah halaman (dan tanpa memecah accordion di tengah).
+        $allowedPerPage = [20, 50, 100, 200];
+        $perPage = (int) $request->query('per_page', 20);
+        if (! in_array($perPage, $allowedPerPage, true)) {
+            $perPage = 20;
+        }
+
+        $reports = $query->paginate($perPage)->withQueryString();
+
+        // Audit UX 2026-09-11: laporan dikelompokkan Sekolah → Kelas untuk
+        // presentasi accordion. Grouping dibangun dari data ter-scope di
+        // atas, sehingga tidak bisa membocorkan sekolah di luar scope.
+        // Kunci array JANGAN di-reset (->values()) — nama kelas dipakai
+        // sebagai key oleh view.
+        $grouped = $reports->getCollection()->groupBy([
+            fn ($report) => $report->school->name,
+            fn ($report) => $report->schoolClass->name,
+        ]);
 
         // Scope school dropdown to accessible schools.
         $schoolsQuery = School::orderBy('name');
@@ -52,22 +92,95 @@ class ReportController extends Controller
         }
         $schools = $schoolsQuery->get();
 
-        // Only users with reports.review can approve/reject (Relation + SuperAdmin).
-        $canReview = $this->authorization->allows($this->actingUser(), 'reports.review');
+        // Pilihan filter kelas & coach juga dibatasi scope sekolah yang sama,
+        // supaya dropdown tidak membocorkan nama sekolah/coach di luar wewenang.
+        $classesQuery = SchoolClass::orderBy('name')->with('school');
+        if ($accessibleSchoolIds !== null) {
+            $classesQuery->whereIn('school_id', $accessibleSchoolIds);
+        }
+        $classes = $classesQuery->get();
 
-        return view('admin.reports.index', compact('reports', 'schools', 'canReview'));
+        $coachesQuery = User::where('role', User::ROLE_COACH)->orderBy('name');
+        if ($accessibleSchoolIds !== null) {
+            // Hanya coach yang benar-benar punya laporan di sekolah ter-scope.
+            $coachesQuery->whereHas('reports', fn ($q) => $q->whereIn('school_id', $accessibleSchoolIds));
+        }
+        $coaches = $coachesQuery->get();
+
+        // Only users with reports.review can approve/reject (Relation + SuperAdmin).
+        $canReview = $this->authorization->allows($user, 'reports.review');
+
+        return view('admin.reports.index', compact(
+            'reports', 'grouped', 'schools', 'classes', 'coaches',
+            'canReview', 'approvedOnly', 'perPage', 'allowedPerPage'
+        ));
+    }
+
+    /**
+     * Reminder laporan (meeting 2026-09 req. D) untuk Relation/SuperAdmin:
+     * kirim notifikasi ke semua coach yang masih memiliki sesi mengajar
+     * belum dilaporkan. Route dibatasi permission reports.remind.
+     */
+    public function remind(Request $request)
+    {
+        $user = $this->actingUser();
+        abort_unless($this->authorization->allows($user, 'reports.remind'), 403, 'Permission tidak mencukupi.');
+
+        $validated = $request->validate([
+            'coach_id' => 'nullable|integer|exists:users,id',
+            'message'  => 'nullable|string|max:500',
+        ]);
+
+        $reminders = app(\App\Services\ReportReminderService::class);
+
+        if (!empty($validated['coach_id'])) {
+            $coach = User::findOrFail($validated['coach_id']);
+            $sent = $reminders->send($user, $coach, $validated['message'] ?? null);
+        } else {
+            $sent = $reminders->send($user, $reminders->overdueCoaches($user), $validated['message'] ?? null);
+        }
+
+        if ($sent === 0) {
+            // Tanpa data jadwal mengajar tidak ada coach yang dianggap
+            // menunggak — pastikan user paham reminder tidak terkirim.
+            if (TeachingSchedule::count() === 0) {
+                return back()->with('error', 'Reminder tidak dapat dikirim: belum ada data jadwal mengajar. Import jadwal mengajar terlebih dahulu (menu Jadwal Mengajar).');
+            }
+
+            return back()->with('success', 'Tidak ada coach yang perlu diingatkan saat ini (semua sesi sudah dilaporkan, atau reminder sebelumnya masih belum dibaca).');
+        }
+
+        if ($sent > 0) {
+            $this->activityLog->log(
+                $user,
+                'report.reminder_sent',
+                'report',
+                null,
+                "Reminder laporan dikirim ke {$sent} coach",
+                ['coach_id' => $validated['coach_id'] ?? null, 'count' => $sent],
+                $request,
+            );
+        }
+
+        return back()->with('success', "Reminder berhasil dikirim ke {$sent} coach.");
     }
 
     public function show(Report $report)
     {
         $this->ensureSchoolAccess($report);
 
-        $report->load(['coach', 'school', 'schoolClass', 'attendances.student', 'media']);
+        // Teacher School hanya boleh melihat detail laporan approved (req. A),
+        // konsisten dengan index() yang memaksa filter status approved.
+        if ($this->actingUser()->role === User::ROLE_TEACHER_SCHOOL) {
+            abort_if($report->status !== 'approved', 403, 'Laporan belum disetujui.');
+        }
+
+        $report->load(['coach', 'school', 'schoolClass', 'attendances.student', 'media', 'attendanceMedia']);
         $canReview = $this->authorization->allows($this->actingUser(), 'reports.review');
         return view('admin.reports.show', compact('report', 'canReview'));
     }
 
-    public function approve(Report $report)
+    public function approve(Request $request, Report $report)
     {
         $this->ensureSchoolAccess($report);
         abort_if($report->status !== 'submitted', 422, 'Hanya laporan yang dikirim bisa disetujui.');
@@ -78,6 +191,15 @@ class ReportController extends Controller
             'approved_at' => now(),
             'admin_notes' => null,
         ]);
+
+        $this->activityLog->log(
+            $this->actingUser(),
+            'report.approved',
+            'report',
+            $report->id,
+            "Laporan #{$report->id} disetujui",
+            request: $request,
+        );
 
         return back()->with('success', "Laporan #{$report->id} berhasil disetujui.");
     }
@@ -92,6 +214,16 @@ class ReportController extends Controller
             'status'      => 'rejected',
             'admin_notes' => $request->admin_notes,
         ]);
+
+        $this->activityLog->log(
+            $this->actingUser(),
+            'report.rejected',
+            'report',
+            $report->id,
+            "Laporan #{$report->id} ditolak",
+            ['admin_notes' => $request->admin_notes],
+            $request,
+        );
 
         return back()->with('success', "Laporan #{$report->id} ditolak dengan catatan.");
     }
@@ -133,7 +265,7 @@ class ReportController extends Controller
         $this->ensureSchoolAccess($report);
         abort_unless($report->status === 'approved', 403, 'Hanya laporan yang sudah disetujui dapat diunduh.');
 
-        $report->load(['coach', 'school', 'schoolClass', 'attendances.student', 'media']);
+        $report->load(['coach', 'school', 'schoolClass', 'attendances.student', 'media', 'attendanceMedia']);
 
         // Build a safe filename: Coach-Report-{School}-{Coach}-{Date}
         $filename = 'Coach-Report-'
@@ -142,8 +274,12 @@ class ReportController extends Controller
             . $report->report_date->format('Y-m-d')
             . '.html';
 
+        // Konteks tombol "Kembali": PIC kembali ke dashboard PIC, role lain
+        // ke daftar laporan admin (coach memakai controller sendiri).
+        $backTo = $this->actingUser()->role === User::ROLE_SCHOOL_PIC ? 'pic' : 'admin';
+
         return response()
-            ->view('admin.reports.download', compact('report'))
+            ->view('admin.reports.download', compact('report', 'backTo'))
             ->header('Content-Type', 'text/html; charset=utf-8')
             ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
     }

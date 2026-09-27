@@ -78,25 +78,22 @@ class MediaStorageService
     {
         $deleted = true;
 
-        // Only attempt disk deletion for local files (not Cloudinary URLs)
-        if (!$this->isExternalUrl($media->path)) {
-            $disk = $media->disk ?? $this->disk;
+        $disk = $media->disk ?? $this->disk;
 
-            if (Storage::disk($disk)->exists($media->path)) {
-                $deleted = Storage::disk($disk)->delete($media->path);
+        if (Storage::disk($disk)->exists($media->path)) {
+            $deleted = Storage::disk($disk)->delete($media->path);
 
-                if (!$deleted) {
-                    Log::warning('Failed to delete media file from disk', [
-                        'media_id' => $media->id,
-                        'path'     => $media->path,
-                        'disk'     => $disk,
-                    ]);
-                }
+            if (!$deleted) {
+                Log::warning('Failed to delete media file from disk', [
+                    'media_id' => $media->id,
+                    'path'     => $media->path,
+                    'disk'     => $disk,
+                ]);
             }
-
-            // Clean up empty directories up the tree
-            $this->cleanupEmptyDirectories($disk, dirname($media->path));
         }
+
+        // Clean up empty directories up the tree
+        $this->cleanupEmptyDirectories($disk, dirname($media->path));
 
         $media->delete();
 
@@ -114,17 +111,10 @@ class MediaStorageService
     }
 
     /**
-     * Get the public URL for a media file.
-     *
-     * For external URLs (legacy Cloudinary), returns the URL as-is.
-     * For local files, returns the storage URL.
+     * Get the URL for a media file on its storage disk.
      */
     public function url(ReportMedia $media): string
     {
-        if ($this->isExternalUrl($media->path)) {
-            return $media->path;
-        }
-
         $disk = $media->disk ?? $this->disk;
         return Storage::disk($disk)->url($media->path);
     }
@@ -136,10 +126,6 @@ class MediaStorageService
      */
     public function absolutePath(ReportMedia $media): ?string
     {
-        if ($this->isExternalUrl($media->path)) {
-            return null;
-        }
-
         $disk = $media->disk ?? $this->disk;
 
         if (!Storage::disk($disk)->exists($media->path)) {
@@ -150,23 +136,20 @@ class MediaStorageService
     }
 
     /**
-     * Check whether a media path is an external URL (e.g. Cloudinary).
-     */
-    public function isExternalUrl(string $path): bool
-    {
-        return str_starts_with($path, 'http://') || str_starts_with($path, 'https://');
-    }
-
-    /**
      * Build the directory path for storing media.
      *
      * Structure: reports/{year}/{report_id}/images/
      *            reports/{year}/{report_id}/videos/
+     *            reports/{year}/{report_id}/attendance/
      */
     private function buildDirectory(Report $report, string $type): string
     {
         $year      = $report->report_date?->format('Y') ?? now()->format('Y');
-        $subfolder = $type === 'photo' ? 'images' : 'videos';
+        $subfolder = match ($type) {
+            'photo'      => 'images',
+            'attendance' => 'attendance',
+            default      => 'videos',
+        };
 
         return "reports/{$year}/{$report->id}/{$subfolder}";
     }

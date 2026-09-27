@@ -473,7 +473,35 @@
         .table-responsive .table td { white-space: nowrap; }
         .table-responsive .table td:first-child,
         .table-responsive .table th:first-child { white-space: normal; }
-        .table-responsive .table td { overflow-wrap: anywhere; }
+        /* QA M-004 (perbaikan 2026-09-14): "overflow-wrap: anywhere" membuat
+           min-content sel runtuh ke lebar SATU karakter sehingga kolom nomor
+           ("No") menyempit dan angka terpotong baris ("10" → "1\n0").
+           "break-word" tetap memotong teks panjang yang benar-benar
+           melimpah, tetapi TIDAK mengubah intrinsic min-content — angka dan
+           kata pendek selalu utuh, kolom melebar/tabel discroll. */
+        .table-responsive .table td {
+            overflow-wrap: break-word;
+            word-break: normal;
+        }
+        /* Angka di badge/pill (jumlah sesi, murid, bukti) tidak boleh
+           menyusut saat parent flex-nya di-shrink (min-width: 0). */
+        .badge { white-space: nowrap; }
+
+        /* Paginasi (perbaikan 2026-09-24): markup Bootstrap 5 dari
+           Paginator::useBootstrapFive() diberi jarak yang aman, tautan tidak
+           pernah menyusut, dan nomor halaman tidak pernah terpecah antar
+           digit di lebar layar sempit. */
+        .pagination { flex-wrap: wrap; gap: .25rem; row-gap: .375rem; }
+        .pagination .page-link {
+            white-space: nowrap;
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.5rem;
+        }
+        .pagination .page-item { flex: 0 0 auto; }
+        .pagination .page-item.disabled .page-link { opacity: .55; }
 
         .modal-dialog { width: auto; max-width: calc(100% - 1.5rem); margin: .75rem auto; }
         .modal-content { max-height: calc(100dvh - 1.5rem); }
@@ -561,6 +589,10 @@
             .sidebar-mobile-close { display: none; }
         }
     </style>
+
+    {{-- Gaya tambahan per halaman (mis. modul Jadwal). Diletakkan setelah
+         app shell style agar halaman bisa menyesuaikan tanpa mengubah shell. --}}
+    @stack('styles')
 </head>
 <body class="{{ auth()->check() ? '' : 'no-sidebar' }}">
 
@@ -615,10 +647,23 @@
                 </a>
             </div>
             @endif
+            {{-- Meeting 2026-09 req. E: coach dapat melihat jadwal mengajarnya sendiri --}}
+            @if($authorization->allows($currentUser, 'schedules.view'))
+            <div class="sidebar-section">
+                <div class="sidebar-section-label">Jadwal</div>
+                <a href="{{ route('admin.schedules.index') }}"
+                   class="sidebar-link {{ str_starts_with($currentRoute, 'admin.schedules') ? 'active' : '' }}"
+                   data-bs-toggle="tooltip" data-bs-placement="right" title="Jadwal Mengajar">
+                    <i class="bi bi-calendar-week"></i>
+                    <span class="sidebar-link-text">Jadwal Mengajar</span>
+                </a>
+            </div>
+            @endif
 
         {{-- ===== SUPERADMIN / RELATION ===== --}}
         @elseif(in_array($currentUser->role, ['relation', 'superadmin'], true))
-            @if($currentUser->isSuperAdmin())
+            {{-- Meeting 2026-09 req. B: Relation kini punya dashboard operasional sendiri --}}
+            @if($authorization->allows($currentUser, 'dashboard.view'))
             <div class="sidebar-section">
                 <a href="{{ route('admin.dashboard') }}"
                    class="sidebar-link {{ str_starts_with($currentRoute, 'admin.dashboard') ? 'active' : '' }}"
@@ -630,7 +675,7 @@
             @endif
 
             {{-- Operasional --}}
-            @if($authorization->allows($currentUser, 'reports.view_all') || $authorization->allows($currentUser, 'attendance.view'))
+            @if($authorization->allows($currentUser, 'reports.view_all') || $authorization->allows($currentUser, 'attendance.view') || $authorization->allows($currentUser, 'schedules.view'))
             <div class="sidebar-section">
                 <div class="sidebar-section-label">Operasional</div>
                 @if($authorization->allows($currentUser, 'reports.view_all'))
@@ -647,6 +692,22 @@
                    data-bs-toggle="tooltip" data-bs-placement="right" title="Kehadiran">
                     <i class="bi bi-calendar-check"></i>
                     <span class="sidebar-link-text">Kehadiran</span>
+                </a>
+                @endif
+                @if($authorization->allows($currentUser, 'schedules.view'))
+                <a href="{{ route('admin.schedules.index') }}"
+                   class="sidebar-link {{ str_starts_with($currentRoute, 'admin.schedules') ? 'active' : '' }}"
+                   data-bs-toggle="tooltip" data-bs-placement="right" title="Jadwal Mengajar">
+                    <i class="bi bi-calendar-week"></i>
+                    <span class="sidebar-link-text">Jadwal Mengajar</span>
+                </a>
+                @endif
+                @if($authorization->allows($currentUser, 'notifications.send'))
+                <a href="{{ route('admin.notifications.create') }}"
+                   class="sidebar-link {{ str_starts_with($currentRoute, 'admin.notifications') ? 'active' : '' }}"
+                   data-bs-toggle="tooltip" data-bs-placement="right" title="Kirim Notifikasi">
+                    <i class="bi bi-send"></i>
+                    <span class="sidebar-link-text">Kirim Notifikasi</span>
                 </a>
                 @endif
             </div>
@@ -701,6 +762,12 @@
                    data-bs-toggle="tooltip" data-bs-placement="right" title="Manajemen Akun">
                     <i class="bi bi-people"></i>
                     <span class="sidebar-link-text">Manajemen Akun</span>
+                </a>
+                <a href="{{ route('admin.activity-logs.index') }}"
+                   class="sidebar-link {{ str_starts_with($currentRoute, 'admin.activity-logs') ? 'active' : '' }}"
+                   data-bs-toggle="tooltip" data-bs-placement="right" title="Activity Log">
+                    <i class="bi bi-clipboard-data"></i>
+                    <span class="sidebar-link-text">Activity Log</span>
                 </a>
                 @endif
             </div>
@@ -780,6 +847,22 @@
                    data-bs-toggle="tooltip" data-bs-placement="right" title="Kehadiran">
                     <i class="bi bi-calendar-check"></i>
                     <span class="sidebar-link-text">Kehadiran</span>
+                </a>
+                @endif
+                @if($authorization->allows($currentUser, 'schedules.view'))
+                <a href="{{ route('admin.schedules.index') }}"
+                   class="sidebar-link {{ str_starts_with($currentRoute, 'admin.schedules') ? 'active' : '' }}"
+                   data-bs-toggle="tooltip" data-bs-placement="right" title="Jadwal Mengajar">
+                    <i class="bi bi-calendar-week"></i>
+                    <span class="sidebar-link-text">Jadwal Mengajar</span>
+                </a>
+                @endif
+                @if($authorization->allows($currentUser, 'notifications.send'))
+                <a href="{{ route('admin.notifications.create') }}"
+                   class="sidebar-link {{ str_starts_with($currentRoute, 'admin.notifications') ? 'active' : '' }}"
+                   data-bs-toggle="tooltip" data-bs-placement="right" title="Kirim Notifikasi">
+                    <i class="bi bi-send"></i>
+                    <span class="sidebar-link-text">Kirim Notifikasi</span>
                 </a>
                 @endif
             </div>

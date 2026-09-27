@@ -43,7 +43,7 @@
                         @endforeach
                     </select>
                     <div class="form-text small mt-2">
-                        Siswa belum muncul di absensi? 
+                        Siswa belum muncul di absensi?
                         <a href="#" id="linkKelolaKelas" class="text-decoration-none fw-medium" style="display:none">
                             <i class="bi bi-people"></i> Kelola siswa kelas ini &rarr;
                         </a>
@@ -70,20 +70,32 @@
                     <input type="text" name="lesson_material" class="form-control bg-light" value="{{ old('lesson_material') }}" placeholder="Contoh: Penjumlahan dan Pengurangan Pecahan" required>
                 </div>
                 <div class="col-12">
-                    <label class="form-label fw-semibold text-secondary small">Ringkasan Kegiatan <span class="text-danger">*</span></label>
-                    <textarea name="activity_summary" class="form-control bg-light" rows="4" placeholder="Ceritakan apa yang terjadi selama kelas berlangsung..." required>{{ old('activity_summary') }}</textarea>
+                    <label class="form-label fw-semibold text-secondary small">Goals Materi <span class="text-danger">*</span></label>
+                    <textarea name="goals_materi" class="form-control bg-light" rows="6" placeholder="Goals:
+- Memahami konsep storytelling visual dalam komik.
+- Mengenal bagaimana AI dapat membantu membuat komik secara cepat.
+- Siswa melakukan praktik dan menyusun cerita sesuai dengan konsep yang telah dibuat." required>{{ old('goals_materi') }}</textarea>
+                    <div class="form-text small">Tuliskan goals pembelajaran pertemuan ini. <em># Bisa disesuaikan dengan goals yang dilakukan siswa pada pertemuan.</em></div>
                 </div>
                 <div class="col-12">
-                    <label class="form-label fw-semibold text-secondary small">Catatan Tambahan (Opsional)</label>
+                    <label class="form-label fw-semibold text-secondary small">Activity Report <span class="text-danger">*</span></label>
+                    <textarea name="activity_report" class="form-control bg-light" rows="6" placeholder="Progress:
+- Murid diminta untuk membuat komik dengan memanfaatkan GEM di Gemini dan teknik ANTIF dalam prompting AI.
+- Murid menentukan komik sesuai keinginan dan kreativitas mereka sendiri.
+- Murid dapat memahami dan mengikuti kelas dengan baik." required>{{ old('activity_report') }}</textarea>
+                    <div class="form-text small">Ceritakan aktivitas/progress siswa selama kelas berlangsung. <em># Bisa disesuaikan dengan aktivitas siswa pada pertemuan.</em></div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold text-secondary small">Kendala Teknis Saat Kelas Berjalan</label>
                     <textarea name="notes" class="form-control bg-light" rows="2" placeholder="Tuliskan catatan khusus atau rencana tindak lanjut jika ada...">{{ old('notes') }}</textarea>
                 </div>
-                
+
                 {{-- UPLOAD FOTO --}}
                 <div class="col-12">
                     <label class="form-label fw-semibold text-secondary small"><i class="bi bi-camera me-1"></i> Foto Kegiatan</label>
                     <input type="file" name="photos[]" class="form-control bg-light" accept="image/*" multiple>
                     <div class="form-text small">
-                        Bisa pilih lebih dari 1 foto sekaligus. Maksimal <strong>10 foto</strong>.
+                        Bisa pilih lebih dari 1 foto sekaligus. Maksimal <strong>10 foto</strong> (masing-masing maks. 10 MB).
                     </div>
                     <div id="photoPreview" class="d-flex flex-wrap gap-2 mt-3"></div>
                 </div>
@@ -93,10 +105,20 @@
                     <label class="form-label fw-semibold text-secondary small"><i class="bi bi-camera-video me-1"></i> Video Kegiatan</label>
                     <input type="file" name="videos[]" class="form-control bg-light" accept="video/*" multiple>
                     <div class="form-text small">
-                        Bisa pilih lebih dari 1 video. Maksimal <strong>3 video</strong>.
+                        Bisa pilih lebih dari 1 video. Maksimal <strong>3 video</strong>, masing-masing maks. <strong>100 MB</strong>.
                         Format: MP4, MOV, AVI, dll.
                     </div>
                     <div id="videoPreview" class="mt-3"></div>
+                </div>
+
+                {{-- UPLOAD BUKTI ABSENSI --}}
+                <div class="col-12">
+                    <label class="form-label fw-semibold text-secondary small"><i class="bi bi-clipboard-check me-1"></i> Bukti Absensi (Opsional)</label>
+                    <input type="file" name="attendance_media[]" class="form-control bg-light" accept="image/*" multiple>
+                    <div class="form-text small">
+                        Foto daftar hadir atau bukti kehadiran lainnya. Maksimal <strong>5 foto</strong> (masing-masing maks. 10 MB).
+                    </div>
+                    <div id="attendancePreview" class="d-flex flex-wrap gap-2 mt-3"></div>
                 </div>
             </div>
         </div>
@@ -127,6 +149,13 @@
 
 @section('scripts')
 <script>
+// Batas ukuran file — harus sinkron dengan validasi server (Coach\ReportController).
+const MAX_VIDEO_MB = 100;
+const MAX_PHOTO_MB = 10;
+const MAX_VIDEOS   = 3;
+const MAX_PHOTOS   = 10;
+const MAX_ATTENDANCE = 5;
+
 // Ketika coach memilih kelas, load daftar siswa via AJAX
 document.getElementById('classSelect').addEventListener('change', function () {
     const classId = this.value;
@@ -134,7 +163,7 @@ document.getElementById('classSelect').addEventListener('change', function () {
     const list    = document.getElementById('attendanceList');
     const link = document.getElementById('linkKelolaKelas');
     const info = document.getElementById('infoKelolaKelas');
-    
+
     if (classId) {
         link.href = `/classes/${classId}/students`;
         link.style.display = 'inline';
@@ -148,7 +177,7 @@ document.getElementById('classSelect').addEventListener('change', function () {
         card.style.display = 'none';
         return;
     }
-    
+
     // Tampilkan loading
     list.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm me-2 text-primary"></div> Memuat daftar siswa...</div>';
     card.style.display = 'block';
@@ -208,47 +237,98 @@ document.getElementById('classSelect').addEventListener('change', function () {
         });
 });
 
-// Preview foto sebelum upload
-document.querySelector('input[name="photos[]"]').addEventListener('change', function () {
-    const preview = document.getElementById('photoPreview');
-    preview.innerHTML = '';
+// Preview foto sebelum upload + validasi ukuran/count di sisi klien
+function bindImagePreview(selector, previewId, maxCount, maxMb) {
+    const input = document.querySelector(selector);
+    if (!input) return;
 
-    if (this.files.length > 10) {
-        alert('Maksimal 10 foto!');
-        this.value = '';
-        return;
-    }
+    input.addEventListener('change', function () {
+        const preview = document.getElementById(previewId);
+        preview.innerHTML = '';
 
-    Array.from(this.files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = e => {
+        if (this.files.length > maxCount) {
+            alert(`Maksimal ${maxCount} foto!`);
+            this.value = '';
+            return;
+        }
+
+        for (const file of this.files) {
+            if (file.size > maxMb * 1024 * 1024) {
+                alert(`Foto "${file.name}" melebihi ${maxMb} MB. Kecilkan ukuran file atau pilih foto lain.`);
+                this.value = '';
+                preview.innerHTML = '';
+                return;
+            }
+        }
+
+        Array.from(this.files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                preview.innerHTML += `
+                    <div class="position-relative overflow-hidden shadow-sm" style="width: 80px; height: 80px; border-radius: 10px; border: 2px solid #fff;">
+                        <img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>`;
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+}
+
+// Preview nama video sebelum upload + validasi ukuran/count di sisi klien
+function bindVideoPreview(selector, previewId, maxCount, maxMb) {
+    const input = document.querySelector(selector);
+    if (!input) return;
+
+    input.addEventListener('change', function () {
+        const preview = document.getElementById(previewId);
+        preview.innerHTML = '';
+
+        if (this.files.length > maxCount) {
+            alert(`Maksimal ${maxCount} video!`);
+            this.value = '';
+            return;
+        }
+
+        for (const file of this.files) {
+            if (file.size > maxMb * 1024 * 1024) {
+                alert(`Video "${file.name}" berukuran ${(file.size / 1024 / 1024).toFixed(1)} MB, melebihi batas ${maxMb} MB. Kecilkan ukuran video atau pilih video lain.`);
+                this.value = '';
+                preview.innerHTML = '';
+                return;
+            }
+        }
+
+        Array.from(this.files).forEach(file => {
             preview.innerHTML += `
-                <div class="position-relative overflow-hidden shadow-sm" style="width: 80px; height: 80px; border-radius: 10px; border: 2px solid #fff;">
-                    <img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">
-                </div>`;
-        };
-        reader.readAsDataURL(file);
+                <span class="badge bg-light text-dark border border-secondary-subtle py-2 px-3 me-2 mb-2">
+                    <i class="bi bi-film text-danger me-1"></i> ${file.name}
+                    <span class="ms-1 text-muted fw-normal">(${(file.size / 1024 / 1024).toFixed(1)} MB)</span>
+                </span>`;
+        });
     });
-});
+}
 
-// Preview nama video sebelum upload
-document.querySelector('input[name="videos[]"]').addEventListener('change', function () {
-    const preview = document.getElementById('videoPreview');
-    preview.innerHTML = '';
+bindImagePreview('input[name="photos[]"]', 'photoPreview', MAX_PHOTOS, MAX_PHOTO_MB);
+bindImagePreview('input[name="attendance_media[]"]', 'attendancePreview', MAX_ATTENDANCE, MAX_PHOTO_MB);
+bindVideoPreview('input[name="videos[]"]', 'videoPreview', MAX_VIDEOS, MAX_VIDEO_MB);
 
-    if (this.files.length > 3) {
-        alert('Maksimal 3 video!');
-        this.value = '';
-        return;
+// safety belt terakhir: cegah submit jika ada file over-size yang lolos
+document.getElementById('reportForm').addEventListener('submit', function (e) {
+    const checks = [
+        [this.querySelector('input[name="videos[]"]'), MAX_VIDEO_MB],
+        [this.querySelector('input[name="photos[]"]'), MAX_PHOTO_MB],
+        [this.querySelector('input[name="attendance_media[]"]'), MAX_PHOTO_MB],
+    ];
+    for (const [input, maxMb] of checks) {
+        if (!input || !input.files) continue;
+        for (const file of input.files) {
+            if (file.size > maxMb * 1024 * 1024) {
+                e.preventDefault();
+                alert(`File "${file.name}" melebihi batas ${maxMb} MB — laporan belum terkirim.`);
+                return;
+            }
+        }
     }
-
-    Array.from(this.files).forEach((file, i) => {
-        preview.innerHTML += `
-            <span class="badge bg-light text-dark border border-secondary-subtle py-2 px-3 me-2 mb-2">
-                <i class="bi bi-film text-danger me-1"></i> ${file.name}
-                <span class="ms-1 text-muted fw-normal">(${(file.size / 1024 / 1024).toFixed(1)} MB)</span>
-            </span>`;
-    });
 });
 </script>
 @endsection

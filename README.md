@@ -12,11 +12,10 @@
 * **Review Laporan:** Alur persetujuan (_Approve_ / _Reject_) laporan oleh tim operasional yang berwenang sebelum laporan diteruskan ke PIC Sekolah terkait.
 
 ## Tech Stack
-* **Bahasa Pemrograman:** PHP (8.2 / 8.3), JavaScript
+* **Bahasa Pemrograman:** PHP 8.4, JavaScript
 * **Framework:** Laravel 12.0
 * **Database:** SQLite (default lokal), terstruktur siap menggunakan MySQL / PostgreSQL.
 * **Frontend Assets:** Vite + Laravel Blade
-* **Tools Tambahan:** Docker (Containerization)
 
 ## Panduan Instalasi Lokal
 

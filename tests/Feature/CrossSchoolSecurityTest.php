@@ -53,7 +53,7 @@ class CrossSchoolSecurityTest extends TestCase
                     'class_id' => $class->id,
                     'report_date' => '2026-08-17',
                     'lesson_material' => 'Materi',
-                    'activity_summary' => 'Ringkasan',
+                    'activity_summary' => 'Ringkasan', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
                     'status' => 'approved',
                 ]);
                 ReportAttendance::create([
@@ -85,11 +85,43 @@ class CrossSchoolSecurityTest extends TestCase
 
     public function test_pic_only_sees_the_plotted_school_attendance(): void
     {
+        // UX 2026-09-13: index menampilkan kartu sekolah — PIC hanya melihat
+        // sekolah plot-nya, dan drill-down pun tetap terisolasikan.
         $this->actingAs($this->picA)
             ->get(route('attendance.index'))
             ->assertOk()
-            ->assertSee('Student School A')
-            ->assertDontSee('Student School B');
+            ->assertSee('School A')
+            ->assertDontSee('School B');
+
+        $classA = SchoolClass::where('school_id', $this->schoolA->id)->firstOrFail();
+        $classB = SchoolClass::where('school_id', $this->schoolB->id)->firstOrFail();
+
+        $this->actingAs($this->picA)
+            ->get(route('attendance.school', $this->schoolA))
+            ->assertOk()
+            ->assertSee('School A-1');
+
+        // Detail kelas/sekolah sekolah lain ditolak (403), detail sesi
+        // laporan sekolah lain juga ditolak.
+        $this->actingAs($this->picA)
+            ->get(route('attendance.school', $this->schoolB))
+            ->assertForbidden();
+
+        $this->actingAs($this->picA)
+            ->get(route('attendance.class', [$this->schoolB, $classB]))
+            ->assertForbidden();
+
+        $reportB = Report::where('school_id', $this->schoolB->id)->firstOrFail();
+        $this->actingAs($this->picA)
+            ->get(route('attendance.session', $reportB))
+            ->assertForbidden();
+
+        // Murid sekolah lain tidak pernah muncul di jalur manapun.
+        $classAHtml = $this->actingAs($this->picA)
+            ->get(route('attendance.class', [$this->schoolA, $classA]))
+            ->assertOk()
+            ->getContent();
+        $this->assertStringNotContainsString('Student School B', $classAHtml);
     }
 
     public function test_pic_cannot_pivot_to_another_school_via_query_parameter(): void
@@ -97,7 +129,7 @@ class CrossSchoolSecurityTest extends TestCase
         $this->actingAs($this->picA)
             ->get(route('attendance.index', ['school_id' => $this->schoolB->id]))
             ->assertOk()
-            ->assertDontSee('Student School B');
+            ->assertDontSee('School B');
     }
 
     public function test_pic_export_cannot_leak_another_school(): void
@@ -122,7 +154,12 @@ class CrossSchoolSecurityTest extends TestCase
         $this->assertStringNotContainsString('Student School B', $csv);
     }
 
-    public function test_finance_export_is_scoped_and_csv_shaped(): void
+    /**
+     * Requirement bisnis final: Finance punya visibilitas attendance
+     * all-school. Export-nya karena itu mencakup kedua sekolah, bukan hanya
+     * sekolah yang di-plot (plotting sudah tidak lagi menyempitkan Finance).
+     */
+    public function test_finance_export_covers_all_schools_regardless_of_plotting(): void
     {
         $response = $this->actingAs($this->financeA)->get(route('attendance.export'));
         $response->assertOk();
@@ -132,7 +169,7 @@ class CrossSchoolSecurityTest extends TestCase
 
         $this->assertStringStartsWith('School,Class,Student', $csv);
         $this->assertStringContainsString('Student School A', $csv);
-        $this->assertStringNotContainsString('Student School B', $csv);
+        $this->assertStringContainsString('Student School B', $csv);
     }
 
     public function test_pic_cannot_open_a_report_of_another_school(): void

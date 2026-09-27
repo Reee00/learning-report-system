@@ -23,7 +23,8 @@ use Tests\TestCase;
  * - Upload, view, delete, replace media
  * - Authorization enforcement on media access
  * - No orphan files after media/report deletion
- * - Legacy Cloudinary URLs still work
+ * - Media is stored on the private report_media disk (legacy Cloudinary
+ *   support removed 2026-09-11; no external-URL fallback remains)
  * - Storage path structure
  */
 class MediaStorageTest extends TestCase
@@ -223,37 +224,6 @@ class MediaStorageTest extends TestCase
         $this->assertSame(0, $report->media()->count());
     }
 
-    // === LEGACY CLOUDINARY COMPATIBILITY ===
-
-    public function test_legacy_cloudinary_url_still_returned_as_is(): void
-    {
-        $report = $this->createSubmittedReport();
-        $media = ReportMedia::create([
-            'report_id' => $report->id,
-            'type' => 'photo',
-            'path' => 'https://res.cloudinary.com/demo/image/upload/legacy.jpg',
-            'original_name' => 'legacy.jpg',
-        ]);
-
-        // The url() method should return the Cloudinary URL for legacy media
-        $this->assertTrue($media->isExternal());
-    }
-
-    public function test_legacy_cloudinary_media_serve_redirects(): void
-    {
-        $report = $this->createSubmittedReport();
-        $media = ReportMedia::create([
-            'report_id' => $report->id,
-            'type' => 'photo',
-            'path' => 'https://res.cloudinary.com/demo/image/upload/legacy.jpg',
-            'original_name' => 'legacy.jpg',
-        ]);
-
-        $this->actingAs($this->coach)
-            ->get(route('media.serve', $media))
-            ->assertRedirect('https://res.cloudinary.com/demo/image/upload/legacy.jpg');
-    }
-
     // === PATH SAFETY TESTS ===
 
     public function test_filename_does_not_contain_user_input(): void
@@ -281,7 +251,7 @@ class MediaStorageTest extends TestCase
             'class_id' => $this->class->id,
             'report_date' => '2026-08-17',
             'lesson_material' => 'Materi',
-            'activity_summary' => 'Ringkasan',
+            'activity_summary' => 'Ringkasan', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
             'status' => 'submitted',
         ]);
     }

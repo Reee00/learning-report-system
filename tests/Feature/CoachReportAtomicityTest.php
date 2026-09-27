@@ -73,7 +73,7 @@ class CoachReportAtomicityTest extends TestCase
             'class_id' => $this->class->id,
             'report_date' => '2026-08-17',
             'lesson_material' => 'Materi',
-            'activity_summary' => 'Ringkasan',
+            'activity_summary' => 'Ringkasan', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
             'attendance' => [
                 $this->studentA->id => 'present',
                 $this->studentB->id => 'sick',
@@ -152,7 +152,7 @@ class CoachReportAtomicityTest extends TestCase
             ->put(route('coach.reports.update', $report), [
                 'report_date' => '2026-08-18',
                 'lesson_material' => 'Materi Baru',
-                'activity_summary' => 'Ringkasan Baru',
+                'activity_summary' => 'Ringkasan Baru', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
                 'attendance' => [
                     $this->studentA->id => 'absent',
                     $this->studentB->id => 'absent',
@@ -161,7 +161,7 @@ class CoachReportAtomicityTest extends TestCase
             ])
             ->assertRedirect(route('coach.reports.edit', $report))
             // Used to be back()->with('error'), which the edit view never
-            // renders — the coach saw a silent no-op on a mutated report.
+            // renders â€” the coach saw a silent no-op on a mutated report.
             ->assertSessionHasErrors(['photos' => 'Total foto tidak boleh lebih dari 10.']);
 
         $report->refresh();
@@ -192,7 +192,7 @@ class CoachReportAtomicityTest extends TestCase
             ->put(route('coach.reports.update', $report), [
                 'report_date' => '2026-08-18',
                 'lesson_material' => 'Materi Baru',
-                'activity_summary' => 'Ringkasan Baru',
+                'activity_summary' => 'Ringkasan Baru', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
                 'attendance' => [
                     $this->studentA->id => 'present',
                     $this->studentB->id => 'present',
@@ -215,7 +215,7 @@ class CoachReportAtomicityTest extends TestCase
             'class_id' => $this->class->id,
             'report_date' => '2026-08-17',
             'lesson_material' => 'Materi Lama',
-            'activity_summary' => 'Ringkasan Lama',
+            'activity_summary' => 'Ringkasan Lama', 'goals_materi' => 'Goals sesi', 'activity_report' => 'Ringkasan',
             'status' => 'rejected',
         ]);
 

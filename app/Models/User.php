@@ -2,9 +2,11 @@
 namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
+    use Notifiable;
     public const ROLE_SUPERADMIN = 'superadmin';
     public const ROLE_RELATION = 'relation';
     public const ROLE_SPV_COACH = 'spv_coach';
@@ -71,11 +73,15 @@ class User extends Authenticatable
      * Roles whose data access is limited to plotted schools, so at least one
      * school must be selected when the account is created or updated.
      *
+     * Finance is NOT listed: scope-nya all-school (lihat
+     * AuthorizationService::accessibleSchoolIds), jadi memplot sekolah untuk
+     * Finance hanya akan menampilkan field yang tidak mengubah akses apa pun.
+     *
      * @return array<int, string>
      */
     public static function schoolScopedRoles(): array
     {
-        return [self::ROLE_SCHOOL_PIC, self::ROLE_TEACHER_SCHOOL, self::ROLE_FINANCE];
+        return [self::ROLE_SCHOOL_PIC, self::ROLE_TEACHER_SCHOOL];
     }
 
     public function roleLabel(): string
@@ -135,6 +141,29 @@ class User extends Authenticatable
     public function coachClasses()
     {
         return $this->hasMany(CoachClass::class, 'coach_id');
+    }
+
+    /**
+     * Jadwal mengajar tempat user ini menjadi COACH UTAMA (teaching_schedules.
+     * coach_id). Pasangan dari additionalSchedules().
+     */
+    public function teachingSchedules()
+    {
+        return $this->hasMany(TeachingSchedule::class, 'coach_id');
+    }
+
+    /**
+     * Jadwal mengajar tempat user ini menjadi coach tambahan (pivot
+     * teaching_schedule_coach). Dipakai untuk scope visibility coach.
+     */
+    public function additionalSchedules()
+    {
+        return $this->belongsToMany(
+            TeachingSchedule::class,
+            'teaching_schedule_coach',
+            'coach_id',
+            'schedule_id',
+        )->withTimestamps();
     }
 
     // Laporan yang dibuat user ini sebagai coach; FK-nya RESTRICT sehingga
