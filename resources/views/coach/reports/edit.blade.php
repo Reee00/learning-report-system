@@ -4,7 +4,11 @@
 @section('content')
 <div class="container py-4" style="max-width: 800px;">
     <div class="mb-4">
-        <h4 class="mb-1 fw-bold"><i class="bi bi-pencil-square text-primary me-2"></i> Edit Laporan Kelas</h4>
+                    <x-breadcrumb :items="[
+                ['label' => 'Laporan Saya', 'url' => route('coach.reports.index')],
+                ['label' => 'Edit Laporan'],
+            ]" />
+<h1 class="page-title">Edit Laporan Kelas</h1>
         <p class="text-muted small">Perbarui informasi laporan kelas Anda.</p>
     </div>
 

@@ -6,21 +6,12 @@
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h4 class="mb-1 fw-bold">
-                <i class="bi bi-people text-primary me-2"></i> Kelas Saya
-            </h4>
+            <h1 class="page-title">Kelas Saya</h1>
             <p class="text-muted small mb-0">
                 Pilih kelas untuk melihat dan menambahkan data siswa.
             </p>
         </div>
     </div>
-
-    @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
 
     <div class="card shadow-sm border-0 mb-3 bg-light">
         <div class="card-body p-3">

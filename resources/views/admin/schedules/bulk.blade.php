@@ -14,9 +14,7 @@
             <a href="{{ route('admin.schedules.index') }}" class="btn btn-sm btn-outline-secondary mb-2">
                 <i class="bi bi-arrow-left"></i> Daftar Jadwal
             </a>
-            <h4 class="mb-1 fw-bold">
-                <i class="bi bi-building-gear text-primary me-2"></i>Jadwal DIGISchool
-            </h4>
+            <h1 class="page-title">Jadwal DIGISchool</h1>
             <p class="text-muted small mb-0">
                 Satu tab = satu hari, seperti satu sheet pada Excel operasional.
                 Setiap sekolah punya <strong>tanggal mulai</strong> dan
@@ -25,18 +23,6 @@
         </div>
     </div>
 
-    @if (session('success'))
-        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-    @if (session('error'))
-        <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
     @if ($errors->any())
         <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
             <div class="d-flex align-items-center mb-2">
@@ -587,10 +573,11 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         block.querySelector('[data-remove-block]').addEventListener('click', function () {
-            if (!window.confirm('Hapus blok sekolah ini beserta seluruh baris kelasnya?')) return;
-            block.remove();
-            refreshIndices(block.dataset.day);
-            refreshCounts();
+            confirmRun(function () {
+                block.remove();
+                refreshIndices(block.dataset.day);
+                refreshCounts();
+            }, 'Hapus blok sekolah ini beserta seluruh baris kelasnya? Baris yang belum disimpan akan hilang.', 'btn-danger', 'Ya, Hapus Blok');
         });
 
         block.querySelector('[data-duplicate-block]').addEventListener('click', function () {

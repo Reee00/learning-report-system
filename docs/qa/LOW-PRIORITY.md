@@ -1,10 +1,27 @@
 # LOW PRIORITY ISSUES — LRS QA Audit
 
-Semua issue di bawah ini bersifat LOW priority dan dapat ditangani sebagai backlog improvement.
+**Status diperbarui: 2026-09-28.** Dokumen ini adalah subset dari [QA-AUDIT-REPORT.md](./QA-AUDIT-REPORT.md) — hanya berisi isu dengan severity LOW.
+
+> Isu dan analisis di bawah dipertahankan sebagai catatan audit 2026-09-11. Setiap isu kini punya baris **Status** yang mencerminkan kondisi kode saat ini.
+
+| ID | Judul | Status |
+|---|---|---|
+| L-001 | Dashboard title hardcode role | **RESOLVED** |
+| L-002 | Empty state pakai CDN eksternal | **RESOLVED** — diganti Bootstrap Icons di 8 view (2026-09-28) |
+| L-003 | Extra query photos/videos | **RESOLVED** |
+| L-004 | `CloudinaryHelper.php` masih ada | **RESOLVED** |
+| L-005 | Dockerfile PHP 8.3 vs `^8.4` | **N/A** — Docker dihapus |
+| L-006 | `Content-Disposition: inline` | **ACCEPTED / BY DESIGN** — pratinjau laporan, bukan bug |
+| L-007 | Seeder tanpa sekolah kedua | **RESOLVED** |
+| L-008 | Helper text konfirmasi password | **RESOLVED** |
+
+**Sisa backlog:** tidak ada. L-002 sudah diperbaiki; L-006 diterima sebagai keputusan desain (bukan bug).
 
 ---
 
 ## L-001: Dashboard Title Hardcodes Role Check
+
+**Status: RESOLVED** — literal `'superadmin'` sudah tidak ada di `resources/views/admin/dashboard.blade.php`.
 
 **Issue:** Dashboard view menggunakan string literal `'superadmin'` alih-alih constant `User::ROLE_SUPERADMIN`.
 
@@ -30,6 +47,14 @@ Semua issue di bawah ini bersifat LOW priority dan dapat ditangani sebagai backl
 
 ## L-002: Empty State Menggunakan External Image CDN
 
+**Status: RESOLVED — 2026-09-28.** Tidak ada lagi referensi gambar eksternal di `resources/views`.
+
+Temuan awal hanya menyebut `attendance/index.blade.php`. Per 2026-09-28 gambar `cdn-icons-png.flaticon.com` dipakai di **8 view**:
+
+`admin/master/classes.blade.php`, `admin/master/coaches.blade.php`, `admin/master/coach_show.blade.php`, `admin/master/programs.blade.php`, `admin/master/schools.blade.php`, `admin/users/index.blade.php`, `coach/reports/index.blade.php`, `school_pic/dashboard.blade.php`.
+
+Sementara `attendance/index.blade.php` — lokasi asli temuan — sudah tidak memakainya lagi.
+
 **Issue:** Attendance empty state menggunakan gambar dari `cdn-icons-png.flaticon.com`.
 
 **Cause:** `attendance/index.blade.php` line 199:
@@ -48,11 +73,15 @@ Semua issue di bawah ini bersifat LOW priority dan dapat ditangani sebagai backl
 <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
 ```
 
-**Verification:** Verifikasi empty state masih terlihat baik tanpa koneksi internet.
+**Resolusi (2026-09-28):** Kedelapan view diganti dengan Bootstrap Icons — ikon dipilih mengikuti ikon identitas halaman masing-masing (`bi-journal-bookmark` untuk kelas, `bi-people` untuk coach/akun, `bi-book-half` untuk program, `bi-building` untuk sekolah, `bi-inbox` untuk daftar laporan). Ukuran 64px dipertahankan persis (`style="font-size: 4rem;"` + `lh-1`), `opacity-50 mb-3`, perataan tengah, dan `d-block` mengikuti pola empty state yang sudah ada di `attendance/index.blade.php` dan `admin/reports/index.blade.php`. Ikon ditandai `aria-hidden="true"` karena bersifat dekoratif — pesannya dibawa `<h6>` di bawahnya.
+
+**Verification:** `git grep -n -E 'https?://.*\.(png|jpg|jpeg|gif|webp|svg)' resources/views` → 0 hasil. `php artisan view:cache` sukses (semua Blade terkompilasi). Test suite: 459 passed / 7 skipped — identik dengan baseline sebelum perubahan.
 
 ---
 
 ## L-003: Report Show View Memiliki Extra Queries untuk Photos/Videos
+
+**Status: RESOLVED** — `show()` memuat `['coach','school','schoolClass','attendances.student','media','attendanceMedia']` dalam satu pemanggilan, dan view memfilter dari koleksi yang sudah dimuat.
 
 **Issue:** `AdminReportController::show()` memuat relation `media`, tapi view mengakses `$report->photos` dan `$report->videos` yang merupakan filtered relations terpisah — menghasilkan 2 extra queries.
 
@@ -82,6 +111,8 @@ Di view, gunakan:
 ---
 
 ## L-004: CloudinaryHelper.php Masih Ada di Codebase
+
+**Status: RESOLVED** — tidak ada lagi berkas bernama `*cloudinary*` di bawah `app/`. Integrasi Cloudinary dihapus penuh pada 2026-09-11; media kini dilayani [MediaStorageService](../../app/Services/MediaStorageService.php) pada disk privat lokal.
 
 **Issue:** File `app/Helpers/CloudinaryHelper.php` berisi raw cURL calls ke Cloudinary API masih ada, meskipun tidak digunakan oleh code path aktif manapun.
 
@@ -131,6 +162,12 @@ FROM php:8.4-fpm
 
 ## L-006: Report Download Menggunakan Content-Disposition Inline
 
+**Status: ACCEPTED / BY DESIGN — ditutup 2026-09-28. Bukan bug.**
+
+Per 2026-09-28 header `inline` masih dipakai di `app/Http/Controllers/Admin/ReportController.php`, `app/Http/Controllers/Coach/ReportController.php`, dan `app/Http/Controllers/MediaController.php`.
+
+Perilaku ini dipertahankan dengan sadar: laporan disajikan `inline` sebagai **halaman HTML pratinjau** (`Content-Type: text/html`) yang ditujukan untuk **dilihat dan di-review lebih dulu, lalu dicetak** lewat Print browser (termasuk Save as PDF). Mengubahnya menjadi `attachment` akan menghilangkan alur pratinjau/review tersebut. Keputusan akhir 2026-09-28: **dipertahankan apa adanya.** Bila kelak diputuskan berubah, ubah ketiga lokasi sekaligus.
+
 **Issue:** Report download route mengirimkan HTML dengan `Content-Disposition: inline`, yang berarti browser menampilkan halaman HTML langsung alih-alih mendownload file.
 
 **Cause:**  
@@ -156,6 +193,8 @@ Salah satu:
 ---
 
 ## L-007: Seeder Tidak Membuat School B untuk Cross-School Testing
+
+**Status: RESOLVED** — seeder kini membuat 10 sekolah DIGISCHOOL, masing-masing dengan kelas, program, murid, dan plot PIC/Teacher. Cross-school isolation dapat diuji manual langsung setelah `migrate:fresh --seed`.
 
 **Issue:** Seeder hanya membuat 1 sekolah (SD Harapan Bangsa). Tidak ada School B untuk menguji cross-school isolation secara manual.
 
@@ -191,6 +230,8 @@ $picB->schools()->sync([$schoolB->id]);
 ---
 
 ## L-008: Password Confirmation Field Kurang Helper Text
+
+**Status: RESOLVED** — field konfirmasi kini memakai placeholder "Ulangi password baru" (form create) dan "Ulangi password" (form edit) di `resources/views/admin/users/`.
 
 **Issue:** Form create user di User Management membutuhkan `password_confirmation`, tapi mungkin tidak jelas bagi user non-IT bahwa harus mengetik ulang password yang sama.
 

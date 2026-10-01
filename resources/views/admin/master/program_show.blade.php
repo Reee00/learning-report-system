@@ -8,7 +8,12 @@
             <a href="{{ route('admin.programs.index') }}" class="btn btn-sm btn-outline-secondary mb-2">
                 <i class="bi bi-arrow-left"></i> Kembali ke Master Program
             </a>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-book-half text-primary me-2"></i> {{ $program->name }}</h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Program', 'url' => route('admin.programs.index')],
+                ['label' => $program->name],
+            ]" />
+<h1 class="page-title">{{ $program->name }}</h1>
             @if($program->code)
                 <span class="badge bg-light text-secondary border font-monospace">{{ $program->code }}</span>
             @endif

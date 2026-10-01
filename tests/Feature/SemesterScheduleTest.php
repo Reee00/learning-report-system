@@ -336,7 +336,7 @@ class SemesterScheduleTest extends TestCase
         $this->assertSame(4, $template->sessions()->count());
     }
 
-    public function test_delete_pattern_row_keeps_generated_sessions(): void
+    public function test_delete_pattern_row_removes_its_generated_sessions(): void
     {
         $this->createPatterns();
 
@@ -351,10 +351,9 @@ class SemesterScheduleTest extends TestCase
 
         $this->assertModelMissing($template);
 
-        // §9: sesi tetap ada sebagai jadwal biasa, hanya tautan pola lepas.
-        $sessions = TeachingSchedule::whereIn('id', $sessionIds)->get();
-        $this->assertCount(4, $sessions);
-        $this->assertTrue($sessions->every(fn ($session) => $session->template_id === null));
+        // Aturan final 2026-10-01: sesi hasil generate ikut terhapus bersama
+        // baris polanya selama belum punya riwayat (laporan/absensi).
+        $this->assertSame(0, TeachingSchedule::whereIn('id', $sessionIds)->count());
     }
 
     public function test_changing_weekly_status_does_not_destroy_or_extend_the_pattern(): void

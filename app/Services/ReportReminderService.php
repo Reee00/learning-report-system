@@ -11,10 +11,17 @@ use App\Notifications\ReportReminderNotification;
 /**
  * Reminder laporan (meeting 2026-09 requirement D).
  *
- * Aturan "belum selesai" mengikuti alur existing + fitur jadwal baru:
- * sebuah sesi mengajar (teaching_schedules) pada hari ini atau sebelumnya
- * WAJIB memiliki laporan dengan (coach_id, class_id, report_date) yang
- * cocok. Sesi tanpa laporan = laporan belum selesai.
+ * Aturan "belum selesai" mengikuti aturan final 2026-09-28: SATU SESI = SATU
+ * LAPORAN. Sebuah sesi mengajar (teaching_schedules) pada hari ini atau
+ * sebelumnya dianggap selesai begitu ADA satu laporan untuk sesi itu — siapa
+ * pun pembuatnya, coach utama maupun coach pendamping. Rujukan utamanya
+ * `reports.teaching_schedule_id`.
+ *
+ * Sebelumnya kecocokan dihitung per COACH (coach_id + class_id + report_date),
+ * sehingga sesi bersama dua coach bisa dihitung menunggak untuk coach kedua
+ * walau laporannya sudah ada. Kecocokan lama tetap dipakai sebagai cadangan
+ * HANYA untuk laporan yang belum punya tautan sesi (data sebelum migrasi),
+ * dan sekarang pun tidak lagi mensyaratkan coach_id yang sama.
  *
  * Scope:
  * - Relation / SuperAdmin: semua coach yang berlaku.
@@ -27,7 +34,7 @@ class ReportReminderService
     }
 
     /**
-     * Sesi mengajar terlewat (tanggal <= hari ini) tanpa laporan yang cocok.
+     * Sesi mengajar terlewat (tanggal <= hari ini) tanpa laporan untuk sesi itu.
      *
      * Sesi nonaktif (is_active = false) TIDAK dihitung: sekolah menandainya
      * karena libur/ujian, jadi tidak ada kewajiban laporan untuk sesi itu.
@@ -44,10 +51,19 @@ class ReportReminderService
             ->whereNotExists(function ($query): void {
                 $query->selectRaw('1')
                     ->from('reports')
-                    ->whereColumn('reports.coach_id', 'teaching_schedules.coach_id')
-                    ->whereColumn('reports.class_id', 'teaching_schedules.class_id')
-                    ->whereColumn('reports.report_date', 'teaching_schedules.session_date')
-                    ->whereIn('reports.status', ['submitted', 'approved']);
+                    ->where(function ($match): void {
+                        // Jalur utama: laporan menunjuk langsung ke sesi ini.
+                        $match->whereColumn('reports.teaching_schedule_id', 'teaching_schedules.id')
+                            // Cadangan untuk laporan lama tanpa tautan sesi:
+                            // kelas + tanggal yang sama sudah cukup menandai sesi
+                            // ini selesai, tanpa melihat coach pembuatnya.
+                            ->orWhere(function ($legacy): void {
+                                $legacy->whereNull('reports.teaching_schedule_id')
+                                    ->whereColumn('reports.class_id', 'teaching_schedules.class_id')
+                                    ->whereColumn('reports.report_date', 'teaching_schedules.session_date');
+                            });
+                    })
+                    ->whereIn('reports.status', Report::COMPLETED_STATUSES);
             });
 
         $picScope = $this->picScope($sender);

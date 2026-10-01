@@ -15,14 +15,20 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
- * Modul manajemen jadwal mengajar (2026-09-11, direstruktur 2026-09-25).
+ * Modul manajemen jadwal mengajar (2026-09-11, direstruktur 2026-09-25,
+ * dialihkan ke penjadwalan berbasis SESI 2026-09-29).
  *
- * Struktur mengikuti workbook operasional DIGISchool: yang ditampilkan lebih
- * dulu adalah POLA per HARI + SEKOLAH (tiap sekolah punya tanggal mulai
- * sendiri), bukan tumpukan 20 pertemuan tergenerate. Sesi hasil generate tetap
- * tersedia di tab "Sesi" dan di halaman detail pola.
+ * Sejak 2026-09-29 SESI adalah record operasional yang otoritatif: tanggal
+ * tiap pertemuan DIISI MANUAL, boleh diubah kapan saja, dan boleh dikosongkan
+ * ("Belum dijadwalkan"). `meeting_number` adalah urutan pertemuan ("Pertemuan
+ * N") dan tidak ikut bergeser saat tanggal dipindah — karena itu reschedule
+ * punya aksi tersendiri yang hanya menyentuh `session_date`.
+ *
+ * Tab "Pola" tetap ada sebagai METADATA preferensi (hari favorit, jam, coach,
+ * target jumlah pertemuan); tab "Sesi" adalah tempat kerja sebenarnya.
  *
  * Visibility: SuperAdmin dan Relation melihat semua, PIC School sekolah
  * plot-nya (dan bisa mengelola jadwal sekolah plot-nya), Coach hanya jadwal
@@ -60,6 +66,7 @@ class ScheduleController extends Controller
         $patterns = collect();
         $patternsPaginator = null;
         $schedules = null;
+        $progress = collect();
 
         if ($view === 'pola') {
             $result = $this->templates->paginatedPatterns($user, $activeDay, [
@@ -72,6 +79,7 @@ class ScheduleController extends Controller
             $patternsPaginator = $result['paginator'];
         } else {
             $query = TeachingSchedule::with(['school', 'schoolClass', 'program', 'coach', 'additionalCoaches'])
+                ->orderByRaw('session_date IS NULL')
                 ->orderByDesc('session_date')
                 ->orderBy('start_time');
 
@@ -89,12 +97,18 @@ class ScheduleController extends Controller
             if ($request->filled('coach_id')) {
                 $query->forCoach((int) $request->coach_id);
             }
-            // Status sesi: kosong = tampilkan semua (riwayat tetap terlihat),
-            // 'aktif' / 'nonaktif' = saring sesuai status.
+            // Status sesi: kosong = tampilkan semua (riwayat tetap terlihat).
+            // 'aktif' / 'nonaktif' menyaring flag operasional; sisanya adalah
+            // status pertemuan (terjadwal, terlaksana, ditunda, dibatalkan).
             if ($request->query('status') === 'aktif') {
                 $query->active();
             } elseif ($request->query('status') === 'nonaktif') {
                 $query->where('is_active', false);
+            } elseif (array_key_exists((string) $request->query('status'), TeachingSchedule::STATUS_LABELS)) {
+                $query->where('status', $request->query('status'));
+            }
+            if ($request->query('status') === 'belum-dijadwalkan') {
+                $query->unscheduled();
             }
             if ($request->filled('day')) {
                 $query->where('day_of_week', (int) $request->day);
@@ -113,10 +127,16 @@ class ScheduleController extends Controller
             }
 
             $schedules = $query->paginate(20)->withQueryString();
+
+            // Target + progress "N/M pertemuan" per kelas yang benar-benar
+            // tampil di halaman ini — satu query, bukan per baris.
+            $progress = SchoolClass::sessionProgressFor(
+                $schedules->getCollection()->pluck('class_id')->unique()->all()
+            );
         }
 
         return view('admin.schedules.index', compact(
-            'view', 'patterns', 'patternsPaginator', 'schedules',
+            'view', 'patterns', 'patternsPaginator', 'schedules', 'progress',
             'schools', 'classes', 'programs', 'coaches', 'canManage', 'activeDay'
         ));
     }
@@ -297,10 +317,40 @@ class ScheduleController extends Controller
         return view('admin.schedules.form', compact('schedule', 'schools', 'classes', 'programs', 'coaches'));
     }
 
+    /**
+     * Form SATU pertemuan baru (penjadwalan manual).
+     *
+     * Berbeda dari form pola (`create()`): di sini operator membuat satu sesi
+     * untuk satu kelas pada satu tanggal — termasuk tanggal yang tidak
+     * berjarak mingguan. Nomor pertemuannya diberikan backend saat simpan.
+     */
+    public function createSession()
+    {
+        $this->assertCanManage();
+
+        [$schools, $classes, $programs, $coaches] = $this->formData();
+
+        return view('admin.schedules.form', [
+            'schedule' => new TeachingSchedule([
+                'status' => TeachingSchedule::STATUS_SCHEDULED,
+                'jalan_minggu_ini' => true,
+            ]),
+            'schools'  => $schools,
+            'classes'  => $classes,
+            'programs' => $programs,
+            'coaches'  => $coaches,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $this->assertCanManage();
         $attributes = $this->validateSchedule($request);
+
+        // Nomor pertemuan diberikan di sini, bukan oleh form: "Pertemuan N"
+        // adalah urutan pertemuan KELAS ini, dan operator tidak perlu
+        // memikirkannya saat menambah sesi manual.
+        $attributes['meeting_number'] = $this->nextMeetingNumber((int) $attributes['class_id']);
 
         $schedule = TeachingSchedule::create($attributes);
         $schedule->additionalCoaches()->sync($attributes['additional_coach_ids']);
@@ -310,14 +360,14 @@ class ScheduleController extends Controller
             'schedule.created',
             'teaching_schedule',
             $schedule->id,
-            "Jadwal dibuat: {$schedule->schoolClass->name}, {$schedule->session_date->format('Y-m-d')} {$schedule->start_time->format('H:i')}",
+            "Jadwal dibuat: {$schedule->schoolClass->name}, {$schedule->meetingLabel()}, {$this->dateLabel($schedule)}",
             ['school_id' => $schedule->school_id, 'class_id' => $schedule->class_id, 'coach_id' => $schedule->coach_id],
             $request,
         );
 
         return redirect()
-            ->route('admin.schedules.index')
-            ->with('success', 'Jadwal berhasil ditambahkan.');
+            ->route('admin.schedules.index', ['view' => 'sesi'])
+            ->with('success', $schedule->meetingLabel().' berhasil ditambahkan.');
     }
 
     public function update(Request $request, TeachingSchedule $schedule)
@@ -327,6 +377,8 @@ class ScheduleController extends Controller
 
         $attributes = $this->validateSchedule($request, $schedule);
 
+        // meeting_number sengaja TIDAK ikut diubah: mengedit/menjadwalkan ulang
+        // sebuah pertemuan tidak boleh menukar urutan pertemuan.
         $schedule->update($attributes);
         $schedule->additionalCoaches()->sync($attributes['additional_coach_ids']);
 
@@ -335,14 +387,117 @@ class ScheduleController extends Controller
             'schedule.updated',
             'teaching_schedule',
             $schedule->id,
-            "Jadwal diperbarui: {$schedule->schoolClass->name}, {$schedule->session_date->format('Y-m-d')} {$schedule->start_time->format('H:i')}",
+            "Jadwal diperbarui: {$schedule->schoolClass->name}, {$schedule->meetingLabel()}, {$this->dateLabel($schedule)}",
             ['school_id' => $schedule->school_id, 'class_id' => $schedule->class_id, 'coach_id' => $schedule->coach_id],
             $request,
         );
 
         return redirect()
-            ->route('admin.schedules.index')
-            ->with('success', 'Jadwal berhasil diperbarui.');
+            ->route('admin.schedules.index', ['view' => 'sesi'])
+            ->with('success', $schedule->meetingLabel().' berhasil diperbarui.');
+    }
+
+    /**
+     * Reschedule SATU pertemuan: hanya tanggalnya yang berpindah.
+     *
+     * Aksi terpisah dari `update()` supaya aturannya tidak bisa dilanggar
+     * tidak sengaja oleh form yang lebih lengkap: di sini TIDAK ADA field
+     * `meeting_number`, jadi urutan pertemuan dijamin tetap. Tanggal boleh
+     * dikosongkan — pertemuan yang tanggalnya dicabut otomatis berstatus
+     * "Ditunda" sampai tanggal barunya ditetapkan.
+     *
+     * Tidak ada generate/regenerate yang dijalankan: memindahkan tanggal tidak
+     * pernah memerlukan regenerate.
+     */
+    public function reschedule(Request $request, TeachingSchedule $schedule)
+    {
+        $this->assertCanManage();
+        $this->assertSchoolInScope($schedule);
+
+        $validated = $request->validate([
+            'session_date' => ['nullable', 'date'],
+        ]);
+
+        $newDate = $validated['session_date'] ?? null;
+
+        if ($newDate !== null) {
+            $duplicate = TeachingSchedule::query()
+                ->where('school_id', $schedule->school_id)
+                ->where('class_id', $schedule->class_id)
+                ->whereKeyNot($schedule->id)
+                ->whereDate('session_date', $newDate)
+                ->whereTime('start_time', $schedule->start_time)
+                ->whereTime('end_time', $schedule->end_time)
+                ->exists();
+
+            if ($duplicate) {
+                throw ValidationException::withMessages([
+                    'session_date' => 'Sesi untuk kelas, tanggal, dan jam ini sudah ada.',
+                ]);
+            }
+        }
+
+        $oldDate = $schedule->session_date?->toDateString();
+
+        $schedule->session_date = $newDate;
+
+        // Tanggal diisi -> pertemuan kembali terjadwal; tanggal dicabut ->
+        // pertemuan menunggu tanggal baru.
+        if ($newDate !== null && $schedule->status === TeachingSchedule::STATUS_POSTPONED) {
+            $schedule->status = TeachingSchedule::STATUS_SCHEDULED;
+        } elseif ($newDate === null && $schedule->status === TeachingSchedule::STATUS_SCHEDULED) {
+            $schedule->status = TeachingSchedule::STATUS_POSTPONED;
+        }
+
+        $schedule->save();
+
+        $this->activityLog->log(
+            $this->actingUser(),
+            'schedule.rescheduled',
+            'teaching_schedule',
+            $schedule->id,
+            "Pertemuan dipindah: {$schedule->schoolClass->name}, {$schedule->meetingLabel()}, "
+                .($oldDate ?? 'belum dijadwalkan').' -> '.($newDate ?? 'belum dijadwalkan'),
+            ['session_date' => $newDate, 'previous_session_date' => $oldDate],
+            $request,
+        );
+
+        return back()->with(
+            'success',
+            $newDate === null
+                ? $schedule->meetingLabel().' ditandai belum dijadwalkan (Ditunda). Nomor pertemuannya tidak berubah.'
+                : $schedule->meetingLabel().' dipindah ke '.$schedule->session_date->translatedFormat('d F Y').'. Nomor pertemuannya tidak berubah.'
+        );
+    }
+
+    /**
+     * Ubah status operasional satu pertemuan (Terjadwal / Terlaksana /
+     * Ditunda / Dibatalkan). Tidak menyentuh nomor pertemuan, tanggal,
+     * laporan, maupun absensi yang sudah ada.
+     */
+    public function setStatus(Request $request, TeachingSchedule $schedule)
+    {
+        $this->assertCanManage();
+        $this->assertSchoolInScope($schedule);
+
+        $validated = $request->validate([
+            'status' => ['required', Rule::in(array_keys(TeachingSchedule::STATUS_LABELS))],
+        ]);
+
+        $schedule->status = $validated['status'];
+        $schedule->save();
+
+        $this->activityLog->log(
+            $this->actingUser(),
+            'schedule.status_changed',
+            'teaching_schedule',
+            $schedule->id,
+            "Status pertemuan diubah: {$schedule->schoolClass->name}, {$schedule->meetingLabel()} -> {$schedule->statusLabel()}",
+            ['status' => $schedule->status],
+            $request,
+        );
+
+        return back()->with('success', $schedule->meetingLabel().' berstatus '.$schedule->statusLabel().'.');
     }
 
     /**
@@ -398,18 +553,27 @@ class ScheduleController extends Controller
 
         $this->assertSchoolInScope($schedule);
 
+        // Sesi yang sudah punya riwayat (laporan + absensi + media) tidak boleh
+        // dihapus dari sini: menghapusnya berarti melepas laporan dari
+        // sesinya. Untuk pertemuan yang batal, pakai status "Dibatalkan" atau
+        // nonaktifkan sesinya — riwayatnya tetap utuh.
+        if ($schedule->hasHistory()) {
+            return back()->with('error', "{$schedule->meetingLabel()} sudah punya laporan, jadi tidak bisa dihapus. "
+                .'Gunakan status "Dibatalkan" atau nonaktifkan sesinya supaya riwayat tetap tersimpan.');
+        }
+
         $this->activityLog->log(
             $user,
             'schedule.deleted',
             'teaching_schedule',
             $schedule->id,
-            "Jadwal dihapus: {$schedule->schoolClass->name}, {$schedule->session_date->format('Y-m-d')}",
+            "Jadwal dihapus: {$schedule->schoolClass->name}, {$schedule->meetingLabel()}, {$this->dateLabel($schedule)}",
             request: $request,
         );
 
         $schedule->delete();
 
-        return back()->with('success', 'Jadwal berhasil dihapus.');
+        return back()->with('success', 'Sesi berhasil dihapus.');
     }
 
     /**
@@ -435,7 +599,7 @@ class ScheduleController extends Controller
             'teaching_schedule',
             $schedule->id,
             ($schedule->is_active ? 'Sesi diaktifkan: ' : 'Sesi dinonaktifkan: ')
-                ."{$schedule->schoolClass->name}, {$schedule->session_date->format('Y-m-d')}",
+                ."{$schedule->schoolClass->name}, {$schedule->meetingLabel()}, {$this->dateLabel($schedule)}",
             request: $request,
         );
 
@@ -536,7 +700,10 @@ class ScheduleController extends Controller
     private function scheduleRules(): array
     {
         return [
-            'session_date'       => ['required', 'date'],
+            // Tanggal boleh kosong: "Belum dijadwalkan" adalah keadaan yang sah
+            // dalam penjadwalan berbasis sesi.
+            'session_date'       => ['nullable', 'date'],
+            'status'             => ['nullable', Rule::in(array_keys(TeachingSchedule::STATUS_LABELS))],
             'school_id'          => ['required', 'integer', 'exists:schools,id'],
             'class_id'           => ['required', 'integer', 'exists:classes,id'],
             'program_id'         => ['nullable', 'integer', 'exists:programs,id'],
@@ -649,32 +816,40 @@ class ScheduleController extends Controller
             ]);
         }
 
-        // Duplikat: sesi identik (sekolah + kelas + tanggal + jam) sudah ada.
-        $duplicate = TeachingSchedule::query()
-            ->where('school_id', $validated['school_id'])
-            ->where('class_id', $validated['class_id'])
-            ->whereDate('session_date', $validated['session_date'])
-            ->whereTime('start_time', $validated['start_time'])
-            ->whereTime('end_time', $validated['end_time'])
-            ->when($ignore, fn ($q) => $q->where('id', '!=', $ignore->id))
-            ->exists();
+        // Sesi tanpa tanggal belum menempati slot mana pun, jadi pemeriksaan
+        // duplikat dan bentrok coach di bawah dilewati — keduanya butuh
+        // tanggal untuk bisa dibandingkan.
+        $sessionDate = $validated['session_date'] ?? null;
 
-        if ($duplicate) {
-            throw $this->validationException([
-                'class_id' => 'Sesi untuk kelas, tanggal, dan jam ini sudah ada.',
-            ]);
+        if ($sessionDate !== null) {
+            // Duplikat: sesi identik (sekolah + kelas + tanggal + jam) sudah ada.
+            $duplicate = TeachingSchedule::query()
+                ->where('school_id', $validated['school_id'])
+                ->where('class_id', $validated['class_id'])
+                ->whereDate('session_date', $sessionDate)
+                ->whereTime('start_time', $validated['start_time'])
+                ->whereTime('end_time', $validated['end_time'])
+                ->when($ignore, fn ($q) => $q->where('id', '!=', $ignore->id))
+                ->exists();
+
+            if ($duplicate) {
+                throw $this->validationException([
+                    'class_id' => 'Sesi untuk kelas, tanggal, dan jam ini sudah ada.',
+                ]);
+            }
+
+            // Bentrok jadwal coach: coach yang sama tidak boleh mengajar dua
+            // sesi yang beririsan waktunya pada tanggal yang sama.
+            $this->assertNoCoachConflict($coachIds, $validated, $ignore);
         }
-
-        // Bentrok jadwal coach: coach yang sama tidak boleh mengajar dua sesi
-        // yang beririsan waktunya pada tanggal yang sama.
-        $this->assertNoCoachConflict($coachIds, $validated, $ignore);
 
         return [
             'school_id'          => (int) $validated['school_id'],
             'class_id'           => (int) $validated['class_id'],
             'program_id'         => $validated['program_id'] ?? null,
             'coach_id'           => (int) $validated['coach_id'],
-            'session_date'       => $validated['session_date'],
+            'session_date'       => $sessionDate,
+            'status'             => $validated['status'] ?? TeachingSchedule::STATUS_SCHEDULED,
             'student_count'      => $validated['student_count'] ?? null,
             'start_time'         => $validated['start_time'],
             'end_time'           => $validated['end_time'],
@@ -724,6 +899,23 @@ class ScheduleController extends Controller
     private function validationException(array $errors): \Illuminate\Validation\ValidationException
     {
         return \Illuminate\Validation\ValidationException::withMessages($errors);
+    }
+
+    /**
+     * Nomor pertemuan berikutnya untuk sebuah kelas: melanjutkan yang terbesar
+     * supaya tidak pernah ada dua sesi bernomor sama dalam satu kelas.
+     */
+    private function nextMeetingNumber(int $classId): int
+    {
+        return (int) TeachingSchedule::where('class_id', $classId)->max('meeting_number') + 1;
+    }
+
+    /**
+     * Label tanggal untuk log aktivitas — sesi boleh belum bertanggal.
+     */
+    private function dateLabel(TeachingSchedule $schedule): string
+    {
+        return $schedule->session_date?->format('Y-m-d') ?? 'belum dijadwalkan';
     }
 
     // ------------------------------------------------------------------

@@ -47,6 +47,7 @@ class ClassController extends Controller
         $validated = $request->validate([
             'school_id' => ['required', 'integer', 'exists:schools,id'],
             'name' => ['required', 'string', 'max:100'],
+            'target_meetings' => ['nullable', 'integer', 'min:1', 'max:60'],
         ]);
 
         $this->assertSchoolInScope((int) $validated['school_id']);
@@ -65,6 +66,7 @@ class ClassController extends Controller
         $class = SchoolClass::create([
             'school_id' => (int) $validated['school_id'],
             'name' => $name,
+            'target_meetings' => $validated['target_meetings'] ?? null,
         ]);
 
         $this->activityLog->log(
@@ -86,6 +88,7 @@ class ClassController extends Controller
         $validated = $request->validate([
             'school_id' => ['required', 'integer', 'exists:schools,id'],
             'name' => ['required', 'string', 'max:100'],
+            'target_meetings' => ['nullable', 'integer', 'min:1', 'max:60'],
         ]);
 
         $this->assertSchoolInScope((int) $validated['school_id']);
@@ -101,6 +104,7 @@ class ClassController extends Controller
         $class->update([
             'school_id' => (int) $validated['school_id'],
             'name' => $name,
+            'target_meetings' => $validated['target_meetings'] ?? null,
         ]);
 
         $this->activityLog->log(

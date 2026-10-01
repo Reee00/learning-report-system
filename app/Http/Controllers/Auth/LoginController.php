@@ -94,19 +94,18 @@ class LoginController extends Controller
     // Redirect berdasarkan role
     private function redirectByRole(string $role)
     {
-        // Setiap role harus punya landing page yang benar-benar bisa diakses.
+        // Pemetaan role -> halaman awal tinggal di User::homeRouteName() supaya
+        // handler sesi kedaluwarsa memakai tabel yang sama, bukan menebak.
+        //
         // Fallback ke '/' dilarang: '/' me-redirect ke login, sehingga role tanpa
         // mapping akan terjebak redirect loop login <-> '/'.
-        return match ($role) {
-            User::ROLE_SUPERADMIN => redirect()->route('admin.dashboard'),
-            User::ROLE_RELATION   => redirect()->route('admin.dashboard'),
-            User::ROLE_SPV_COACH  => redirect()->route('admin.coaches.index'),
-            User::ROLE_COACH      => redirect()->route('coach.reports.index'),
-            User::ROLE_SCHOOL_PIC     => redirect()->route('pic.dashboard'),
-            User::ROLE_TEACHER_SCHOOL => redirect()->route('attendance.index'),
-            User::ROLE_FINANCE        => redirect()->route('attendance.index'),
-            default               => abort(403, 'Role akun belum memiliki halaman awal. Hubungi SuperAdmin.'),
-        };
+        $name = User::homeRouteName($role);
+
+        if ($name === null) {
+            abort(403, 'Role akun belum memiliki halaman awal. Hubungi SuperAdmin.');
+        }
+
+        return redirect()->route($name);
     }
 
     // Logout

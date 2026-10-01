@@ -2,8 +2,19 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{-- viewport-fit=cover: app shell memakai env(safe-area-inset-*) untuk
+         notch/home-indicator saat dijalankan sebagai PWA standalone.
+         Zoom tetap diizinkan (tanpa maximum-scale) demi aksesibilitas. --}}
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>@yield('title', 'Learning Report System')</title>
+
+    {{-- PWA: manifest, ikon, dan meta installable --}}
+    @include('partials.pwa-head')
+
+    {{-- Token CSRF untuk permintaan fetch (pendaftaran perangkat Web Push).
+         Halaman ini selalu network-only (tidak pernah di-cache service worker),
+         jadi token tidak pernah tersimpan di Cache Storage. --}}
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     {{-- Google Fonts: Inter --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -578,6 +589,220 @@
             .position-sticky { position: static !important; }
         }
 
+        /* =================================================================
+           DESIGN SYSTEM — komponen bersama (overhaul UX/UI 2026-10-01)
+
+           Blok ini menggantikan pola yang sebelumnya DISALIN ULANG di setiap
+           halaman (judul + deskripsi + baris aksi, kartu filter, keadaan
+           kosong) dengan satu definisi. Aturannya:
+
+           - tanpa gradien dekoratif, tanpa ikon berwarna di samping judul;
+           - kedalaman dibangun dari garis rambut + satu tingkat bayangan,
+             bukan dari bayangan bertumpuk;
+           - kerapatan ERP: tinggi baris dan padding lebih rapat daripada
+             halaman pemasaran, tetapi tetap nyaman dibaca;
+           - satu tinggi tombol, satu radius, satu cincin fokus.
+
+           Token warna/spacing tetap memakai :root di atas — tidak ada
+           variabel baru yang menduplikasi nilainya.
+           ================================================================= */
+
+        /* -- Komponen: sampul halaman ---------------------------------- */
+        .page-header {
+            padding-bottom: .875rem;
+            margin-bottom: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .page-header-main {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        /* Tanpa ini, judul panjang memaksa baris aksi menekuk keluar layar. */
+        .page-header-main > * { min-width: 0; }
+        .page-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            line-height: 1.3;
+            color: var(--text-main);
+            margin: 0;
+            letter-spacing: -.01em;
+        }
+        .page-subtitle {
+            font-size: .8125rem;
+            color: var(--text-muted);
+            margin: .25rem 0 0;
+            max-width: 70ch;
+        }
+        .page-header-actions {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            flex-wrap: wrap;
+        }
+        /* Judul tidak lagi memakai ikon berwarna sebagai hiasan. Bila sebuah
+           halaman masih menyisipkan <i> di dalam .page-title, ikonnya
+           diredam agar tidak menarik perhatian lebih dari judulnya. */
+        .page-title > i,
+        .page-title > .bi {
+            color: var(--text-light) !important;
+            font-size: .85em;
+            margin-right: .4rem !important;
+        }
+
+        /* -- Komponen: remah navigasi ---------------------------------- */
+        .app-breadcrumb {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .375rem;
+            list-style: none;
+            padding: 0;
+            margin: 0 0 .5rem;
+            font-size: .75rem;
+            line-height: 1.4;
+        }
+        .app-breadcrumb-item { display: inline-flex; align-items: center; gap: .375rem; }
+        .app-breadcrumb-item + .app-breadcrumb-item::before {
+            content: "/";
+            color: var(--text-light);
+            font-size: .75rem;
+        }
+        .app-breadcrumb-item a {
+            color: var(--text-muted);
+            text-decoration: none;
+        }
+        .app-breadcrumb-item a:hover { color: var(--primary); text-decoration: underline; }
+        .app-breadcrumb-item [aria-current="page"] { color: var(--text-main); font-weight: 500; }
+
+        /* -- Komponen: keadaan kosong ---------------------------------- */
+        .empty-state {
+            padding: 2.5rem 1.25rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+        .empty-state > .bi {
+            font-size: 1.75rem;
+            color: var(--text-light);
+            display: block;
+            margin-bottom: .625rem;
+        }
+        .empty-state-title {
+            font-size: .9375rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin: 0 0 .25rem;
+        }
+        .empty-state-text {
+            font-size: .8125rem;
+            margin: 0 auto;
+            max-width: 46ch;
+        }
+        .empty-state-action { margin-top: 1rem; }
+
+        /* -- Komponen: bilah filter ------------------------------------ */
+        /* Filter adalah kontrol kerja, bukan kartu promosi: tanpa bayangan,
+           tanpa latar abu, hanya garis pemisah tipis. */
+        .filter-bar {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: .875rem 1rem;
+            margin-bottom: 1rem;
+        }
+        .filter-bar-title {
+            font-size: .75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: var(--text-muted);
+            margin: 0 0 .625rem;
+        }
+        .filter-bar .form-label {
+            font-size: .75rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: .25rem;
+        }
+
+        /* -- De-slop: satu tingkat kedalaman --------------------------- */
+        /* 190 pemakaian `shadow-sm` membuat setiap kartu melayang, sehingga
+           tidak ada lagi yang menonjol. Di dalam area konten, bayangan
+           diturunkan ke garis rambut; hanya elemen yang benar-benar mengambang
+           (dropdown, modal, popover, toast) yang tetap punya bayangan. */
+        .app-content .shadow-sm,
+        .app-content .shadow {
+            box-shadow: var(--shadow-xs) !important;
+        }
+        .app-content .card {
+            border-color: var(--border-color);
+        }
+
+        /* -- Konsistensi kontrol --------------------------------------- */
+        /* Satu tinggi minimum untuk semua tombol dan kontrol form, sehingga
+           baris aksi tidak lagi bergerigi. 44px adalah --touch-target. */
+        .app-content .btn { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: .375rem; }
+        .app-content .btn-sm { min-height: 32px; }
+        .app-content .btn-lg { min-height: 44px; }
+
+        /* -- Aksesibilitas: cincin fokus yang terlihat ------------------ */
+        /* Fokus keyboard harus selalu terlihat. Bootstrap mematikan outline
+           pada beberapa kontrol; di sini dipulihkan dengan satu cincin yang
+           konsisten, tanpa mengubah tampilan saat memakai mouse. */
+        .app-content a:focus-visible,
+        .app-content button:focus-visible,
+        .app-content .btn:focus-visible,
+        .app-content .form-control:focus-visible,
+        .app-content .form-select:focus-visible,
+        .app-sidebar a:focus-visible,
+        .app-topbar a:focus-visible,
+        .app-topbar button:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+            box-shadow: none;
+        }
+
+        /* -- Transisi navigasi (View Transitions API) ------------------ */
+        /* Sangat singkat dan hanya mengubah opacity: tidak ada pergeseran
+           layout, tidak ada animasi yang menunda pekerjaan user. Browser yang
+           tidak mendukung API ini mengabaikan seluruh blok. */
+        @media (prefers-reduced-motion: no-preference) {
+            @view-transition { navigation: auto; }
+            ::view-transition-old(root) { animation: lrsFadeOut .12s ease-out both; }
+            ::view-transition-new(root) { animation: lrsFadeIn .12s ease-in both; }
+        }
+        @keyframes lrsFadeOut { to { opacity: 0; } }
+        @keyframes lrsFadeIn { from { opacity: 0; } }
+
+        /* Indikator progres navigasi: muncul HANYA setelah navigasi terasa
+           lambat (>400ms), bukan spinner di setiap klik. */
+        .nav-progress {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: var(--primary);
+            transform: scaleX(0);
+            transform-origin: left;
+            opacity: 0;
+            z-index: 2000;
+            pointer-events: none;
+        }
+        .nav-progress.is-visible { opacity: 1; transition: opacity .15s ease-in; }
+        .nav-progress.is-running { animation: lrsNavProgress 8s cubic-bezier(.1,.6,.3,1) forwards; }
+        @keyframes lrsNavProgress { from { transform: scaleX(0); } to { transform: scaleX(.9); } }
+
+        @media (prefers-reduced-motion: reduce) {
+            .nav-progress.is-running { animation: none; transform: scaleX(.9); }
+        }
+
+        @media (max-width: 767.98px) {
+            .page-header-main { flex-direction: column; align-items: stretch; }
+            .page-header-actions > .btn,
+            .page-header-actions > a.btn { flex: 1 1 auto; }
+        }
+
         @media (max-width: 359.98px) {
             .app-content > .content-inner { padding: .75rem; }
             .topbar-page-title { font-size: .92rem; }
@@ -595,6 +820,11 @@
     @stack('styles')
 </head>
 <body class="{{ auth()->check() ? '' : 'no-sidebar' }}">
+
+{{-- Indikator progres navigasi. Dibiarkan `hidden` sejak HTML pertama supaya
+     tidak berkedip sebelum skrip sempat memasang pemantau — lihat
+     partials/navigation-enhance.blade.php. --}}
+<div id="navProgress" class="nav-progress" role="presentation" aria-hidden="true" hidden></div>
 
 @auth
 @php
@@ -635,6 +865,17 @@
                     <i class="bi bi-plus-circle"></i>
                     <span class="sidebar-link-text">Buat Laporan</span>
                 </a>
+                {{-- Accident Notes: pengingat pribadi coach, dipisah dari
+                     "Laporan Saya". Hanya muncul untuk role coach (blok ini
+                     memang khusus coach). --}}
+                @if($authorization->allows($currentUser, 'accident_notes.view'))
+                <a href="{{ route('coach.accident-notes.index') }}"
+                   class="sidebar-link {{ str_starts_with($currentRoute, 'coach.accident-notes') ? 'active' : '' }}"
+                   data-bs-toggle="tooltip" data-bs-placement="right" title="Accident Notes">
+                    <i class="bi bi-journal-text"></i>
+                    <span class="sidebar-link-text">Accident Notes</span>
+                </a>
+                @endif
             </div>
             @if($authorization->allows($currentUser, 'students.view'))
             <div class="sidebar-section">
@@ -680,10 +921,19 @@
                 <div class="sidebar-section-label">Operasional</div>
                 @if($authorization->allows($currentUser, 'reports.view_all'))
                 <a href="{{ route('admin.reports.index') }}"
-                   class="sidebar-link {{ str_starts_with($currentRoute, 'admin.reports') ? 'active' : '' }}"
-                   data-bs-toggle="tooltip" data-bs-placement="right" title="Laporan Coach">
-                    <i class="bi bi-file-earmark-check"></i>
-                    <span class="sidebar-link-text">Laporan Coach</span>
+                   class="sidebar-link {{ in_array($currentRoute, ['admin.reports.index', 'admin.reports.show'], true) ? 'active' : '' }}"
+                   data-bs-toggle="tooltip" data-bs-placement="right" title="Arsip Laporan">
+                    <i class="bi bi-archive"></i>
+                    <span class="sidebar-link-text">Arsip Laporan</span>
+                </a>
+                @endif
+                @if($authorization->allows($currentUser, 'reports.review'))
+                {{-- Review = antrean kerja reviewer; Arsip = riwayat baca-saja --}}
+                <a href="{{ route('admin.reports.review') }}"
+                   class="sidebar-link {{ str_starts_with($currentRoute, 'admin.reports.review') ? 'active' : '' }}"
+                   data-bs-toggle="tooltip" data-bs-placement="right" title="Review Laporan">
+                    <i class="bi bi-clipboard-check"></i>
+                    <span class="sidebar-link-text">Review Laporan</span>
                 </a>
                 @endif
                 @if($authorization->allows($currentUser, 'attendance.view'))
@@ -938,6 +1188,18 @@
         <span class="topbar-page-title">@yield('title', 'Learning Report System')</span>
     </div>
     <div class="topbar-right">
+        {{-- PWA Phase 2: aktivasi notifikasi perangkat (Web Push). Hanya
+             dirender bila VAPID dikonfigurasi server-side. --}}
+        @include('partials.push-notifications')
+
+        {{-- PWA: hanya tampil bila browser menawarkan install (beforeinstallprompt)
+             dan aplikasi belum dipasang. Disembunyikan default agar tidak pernah
+             muncul sebagai tombol mati. --}}
+        <button type="button" id="pwaInstallBtn" class="btn btn-light btn-sm d-none"
+                title="Pasang aplikasi LRS di perangkat ini" aria-label="Pasang aplikasi LRS">
+            <i class="bi bi-download"></i>
+            <span class="d-none d-lg-inline">Pasang Aplikasi</span>
+        </button>
         <div class="dropdown">
             <button class="topbar-user-btn" data-bs-toggle="dropdown" aria-expanded="false">
                 <div class="topbar-user-avatar">{{ substr($currentUser->name, 0, 1) }}</div>
@@ -948,6 +1210,14 @@
                 <li class="px-3 py-2 border-bottom">
                     <div class="fw-semibold" style="font-size: 0.85rem;">{{ $currentUser->name }}</div>
                     <div class="text-muted" style="font-size: 0.75rem;">{{ $currentUser->roleLabel() }}</div>
+                </li>
+                <li>
+                    {{-- Account Settings: terbuka untuk SEMUA role (lihat
+                         AccountController) — user hanya menyunting akunnya
+                         sendiri, jadi tidak ada gate permission di sini. --}}
+                    <a class="dropdown-item py-2 d-flex align-items-center" href="{{ route('account.edit') }}">
+                        <i class="bi bi-person-gear me-2"></i> Pengaturan Akun
+                    </a>
                 </li>
                 <li>
                     <form method="POST" action="{{ route('logout') }}">
@@ -1026,17 +1296,87 @@
 <script>
     // Global Confirmation Dialog Helper
     function confirmAction(url, message = 'Apakah Anda yakin ingin melakukan tindakan ini?', method = 'DELETE', buttonClass = 'btn-danger', buttonText = 'Ya, Lanjutkan') {
+        confirmModalTarget = null; // batalkan mode "submit form yang sudah ada"
+        confirmModalCallback = null;
         const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
         document.getElementById('confirmModalMessage').textContent = message;
         document.getElementById('confirmModalForm').action = url;
         document.getElementById('confirmModalMethod').value = method;
-        
+
         const submitBtn = document.getElementById('confirmModalSubmitBtn');
         submitBtn.className = `btn ${buttonClass} rounded-3 px-4 fw-medium`;
         submitBtn.textContent = buttonText;
-        
+
         modal.show();
     }
+
+    // Varian untuk form yang sudah ada di halaman dan membawa field-nya
+    // sendiri (mis. <input type="hidden" name="send_all" value="1">).
+    // confirmAction() hanya bisa mengirim satu URL + _method, sehingga form
+    // seperti itu sebelumnya terpaksa memakai window.confirm() bawaan browser
+    // yang tampilannya berbeda dari modal aplikasi.
+    let confirmModalTarget = null;
+    let confirmModalCallback = null;
+
+    function confirmSubmitForm(formId, message = 'Apakah Anda yakin ingin melakukan tindakan ini?', buttonClass = 'btn-danger', buttonText = 'Ya, Lanjutkan') {
+        const form = document.getElementById(formId);
+
+        // Tanpa form target (atau tanpa Bootstrap), kirim langsung — aksi
+        // tetap berjalan, hanya tanpa dialog.
+        if (!form || typeof bootstrap === 'undefined') {
+            form?.submit();
+            return;
+        }
+
+        confirmModalCallback = null;
+        confirmModalTarget = form;
+        document.getElementById('confirmModalMessage').textContent = message;
+
+        const submitBtn = document.getElementById('confirmModalSubmitBtn');
+        submitBtn.className = `btn ${buttonClass} rounded-3 px-4 fw-medium`;
+        submitBtn.textContent = buttonText;
+
+        new bootstrap.Modal(document.getElementById('confirmModal')).show();
+    }
+
+    // Varian untuk aksi yang tidak menyentuh server sama sekali — mis.
+    // membuang satu blok form yang belum disimpan, yang datanya hilang kalau
+    // diteruskan. Modal yang sama, hanya aksinya berupa callback.
+    function confirmRun(callback, message = 'Apakah Anda yakin ingin melanjutkan?', buttonClass = 'btn-danger', buttonText = 'Ya, Lanjutkan') {
+        if (typeof bootstrap === 'undefined') {
+            callback();
+            return;
+        }
+
+        confirmModalTarget = null;
+        confirmModalCallback = callback;
+        document.getElementById('confirmModalMessage').textContent = message;
+
+        const submitBtn = document.getElementById('confirmModalSubmitBtn');
+        submitBtn.className = `btn ${buttonClass} rounded-3 px-4 fw-medium`;
+        submitBtn.textContent = buttonText;
+
+        new bootstrap.Modal(document.getElementById('confirmModal')).show();
+    }
+
+    // Tombol "Ya" pada modal memakai form bawaannya sendiri; kalau sebuah
+    // form halaman atau callback yang sedang menunggu konfirmasi, jalankan itu.
+    document.getElementById('confirmModalForm')?.addEventListener('submit', function (event) {
+        if (confirmModalTarget) {
+            event.preventDefault();
+            const target = confirmModalTarget;
+            confirmModalTarget = null;
+            target.submit();
+            return;
+        }
+
+        if (confirmModalCallback) {
+            event.preventDefault();
+            const callback = confirmModalCallback;
+            confirmModalCallback = null;
+            callback();
+        }
+    });
 
     // ======== Sidebar Logic ========
     const sidebar = document.getElementById('appSidebar');
@@ -1117,5 +1457,14 @@
     document.addEventListener('DOMContentLoaded', () => initTooltips());
 </script>
 @yield('scripts') {{-- untuk JS tambahan per halaman --}}
+
+{{-- PWA: registrasi service worker + install prompt. Tidak mengubah logika
+     halaman mana pun; aman di-skip browser tanpa dukungan service worker. --}}
+@include('partials.pwa-scripts')
+@include('partials.push-notifications-scripts')
+
+{{-- Navigasi ringan: prefetch aman + indikator progres. Murni progressive
+     enhancement — tanpa JavaScript pun setiap halaman tetap terbuka normal. --}}
+@include('partials.navigation-enhance')
 </body>
 </html>

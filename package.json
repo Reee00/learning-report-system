@@ -2,6 +2,7 @@
     "name": "learning-report-system",
     "private": true,
     "scripts": {
-        "build": "echo 'No build step required'"
+        "build": "echo 'No build step required'",
+        "test:pwa": "node tests/JavaScript/service-worker-routing.test.js public/sw.js"
     }
 }

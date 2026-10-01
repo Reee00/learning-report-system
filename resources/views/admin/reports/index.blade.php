@@ -3,26 +3,34 @@
 
 @section('content')
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-archive text-primary me-2"></i> Arsip Laporan</h4>
-            <p class="text-muted small mb-0">
-                Riwayat laporan per sekolah &rarr; kelas. Tampilan arsip bersifat baca-saja:
-                laporan yang sudah dikirim/disetujui tidak diubah dari halaman ini, dan
-                tidak ada salinan data — arsip menampilkan laporan yang sama.
-            </p>
-        </div>
+    <x-page-header
+        title="Arsip Laporan"
+        description="Riwayat laporan per sekolah → kelas. Tampilan arsip bersifat baca-saja: laporan yang sudah dikirim/disetujui tidak diubah dari halaman ini, dan tidak ada salinan data — arsip menampilkan laporan yang sama."
+        :breadcrumbs="[
+            ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+            ['label' => 'Arsip Laporan'],
+        ]"
+    >
+        @if(app(\App\Services\AuthorizationService::class)->allows(auth()->user(), 'reports.review'))
+        <a href="{{ route('admin.reports.review') }}" class="btn btn-primary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-clipboard-check" aria-hidden="true"></i> Review Laporan
+        </a>
+        @endif
         @if(app(\App\Services\AuthorizationService::class)->allows(auth()->user(), 'reports.remind'))
-        <form method="POST" action="{{ route('admin.reports.remind') }}"
-              onsubmit="return confirm('Kirim reminder ke semua coach yang belum menyelesaikan laporan sesinya?');">
+        {{-- Konfirmasi memakai modal aplikasi, bukan window.confirm() bawaan
+             browser: form ini membawa field tersendiri (send_all), jadi
+             memakai confirmSubmitForm() yang mengirim form apa adanya. --}}
+        <form method="POST" action="{{ route('admin.reports.remind') }}" id="remindAllForm" class="d-inline">
             @csrf
             <input type="hidden" name="send_all" value="1">
-            <button type="submit" class="btn btn-warning d-flex align-items-center gap-2 shadow-sm">
-                <i class="bi bi-bell"></i> Ingatkan Coach Menunggak
+            <button type="button"
+                    class="btn btn-warning d-inline-flex align-items-center gap-2"
+                    onclick="confirmSubmitForm('remindAllForm', 'Kirim reminder ke semua coach yang belum menyelesaikan laporan sesinya?', 'btn-warning', 'Ya, Kirim Reminder')">
+                <i class="bi bi-bell" aria-hidden="true"></i> Ingatkan Coach Menunggak
             </button>
         </form>
         @endif
-    </div>
+    </x-page-header>
 
     {{-- Filter arsip: sekolah → kelas → coach → status → rentang tanggal --}}
     <div class="card mb-4 shadow-sm border-0">

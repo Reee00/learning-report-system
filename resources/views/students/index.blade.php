@@ -10,12 +10,6 @@
 @endphp
 <div class="container py-4">
 
-    @if (session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-    @if (session('error'))
-        <div class="alert alert-danger">{{ session('error') }}</div>
-    @endif
     @if ($errors->any())
         <div class="alert alert-danger">
             <ul class="mb-0">
@@ -28,10 +22,15 @@
 
     {{-- Header --}}
     <div class="mb-4">
-        <a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm mb-2">
-            ← Kembali
+        {{-- Sebelumnya `javascript:history.back()`. Itu melewati routing
+             Laravel dan bisa mendarat di entri riwayat yang sudah basi
+             (halaman yang di-cache browser, atau hasil POST lama). ctx_back_url()
+             memakai referer yang selalu berupa halaman GET, dengan fallback
+             halaman awal role. --}}
+        <a href="{{ ctx_back_url(ctx_route('admin.classes.index', [], true)) }}" class="btn btn-outline-secondary btn-sm mb-2">
+            <i class="bi bi-arrow-left me-1"></i> Kembali
         </a>
-        <h4 class="mb-0">👥 Data Siswa</h4>
+        <h1 class="h4 mb-0">Data Siswa</h1>
         <p class="text-muted mb-0">
             {{ $class->school->name }} — <strong>{{ $class->name }}</strong>
         </p>

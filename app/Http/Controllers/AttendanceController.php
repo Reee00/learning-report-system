@@ -115,6 +115,19 @@ class AttendanceController extends Controller
      * CLASS ATTENDANCE DETAIL — daftar sesi kehadiran (satu laporan per
      * tanggal) untuk kelas tersebut, urut tanggal terbaru. Klik tanggal
      * membuka detail murid sesi itu.
+     *
+     * Gerbang di sini memakai `canAccessSchool()` — aturan yang PERSIS sama
+     * dengan halaman sekolah di atasnya dan dengan `showSession()`. Sebelumnya
+     * halaman ini memakai `canAccessClass()`, yaitu predikat wewenang
+     * PENGELOLAAN kelas (dipakai modul siswa) yang menolak role tanpa
+     * penugasan kelas — termasuk Finance, yang scope kehadirannya justru
+     * global. Akibatnya Finance bisa membuka daftar sekolah tapi tertahan 403
+     * begitu menelusuri ke kelas.
+     *
+     * Pembatas yang sebenarnya dikerjakan oleh query: `scopedReports()`
+     * menyaring laporan sesuai scope role (sekolah, status approval, penugasan
+     * coach), jadi role yang lebih sempit tetap tidak melihat apa pun yang
+     * bukan miliknya meski gerbangnya sama.
      */
     public function showClass(Request $request, School $school, SchoolClass $class)
     {
@@ -125,9 +138,9 @@ class AttendanceController extends Controller
         // keberadaan kelas milik sekolah lain.
         abort_unless($class->school_id === $school->id, 404);
         abort_unless(
-            $this->authorization->canAccessClass($user, $class),
+            $this->authorization->canAccessSchool($user, $school->id),
             403,
-            'Akses kelas tidak diizinkan.'
+            'Akses sekolah tidak diizinkan.'
         );
 
         $filters = $this->validatedFilters($request);

@@ -15,24 +15,32 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Pola jadwal per HARI + SEKOLAH (refactor 2026-09-25).
+ * Pola jadwal per HARI + SEKOLAH — sekarang METADATA, bukan sumber tanggal
+ * (refactor 2026-09-29: penjadwalan berbasis sesi).
  *
- * Model bisnis mengikuti workbook operasional DIGISchool: tiap sheet = satu
- * hari, dan DI DALAM satu hari ada banyak sekolah yang masing-masing punya
- * tanggal mulai sendiri (kolom KET: "Mulai tanggal 3 Agustus 2026"). Karena
- * itu TIDAK ADA periode global — setiap pola (hari + sekolah) menyimpan
- * `start_date` dan `meeting_count` sendiri.
+ * Sebelumnya kelas ini adalah mesin generate mingguan: tanggal setiap
+ * pertemuan = `start_date` + 7k, dan operator tidak punya cara mengisi
+ * tanggal bebas (10 Agu, 24 Agu, 31 Agu, 14 Sep, ...). Sekarang SESI
+ * (`teaching_schedules`) yang otoritatif — tanggalnya diisi/diubah manual
+ * lewat modul jadwal, dan `meeting_number` tidak ikut bergeser saat tanggal
+ * dipindah.
  *
- * - Pola  -> kelompok baris teaching_schedule_templates dengan
- *            (day_of_week, school_id, start_date) yang sama.
- * - Sesi  -> teaching_schedules (template_id + meeting_number), sehingga
- *            reminder, visibility coach, multi-coach, dan filter existing
- *            bekerja tanpa perubahan aturan.
+ * Yang tersisa di sini adalah peran pendukung:
  *
- * Operator memasukkan POLA sekali; sesi pertemuan ke-1..N digenerate dari
- * `start_date` pola tersebut (berulang mingguan pada hari polanya). Libur atau
- * penyesuaian tanggal = hapus/pindah sesi individual, atau tandai
- * `jalan_minggu_ini = false` — pola tidak pernah berubah karenanya.
+ * - `build()`  — menyimpan preferensi kelas: hari favorit, jam, coach, dan
+ *                target jumlah pertemuan (`meeting_count`). Ini juga yang
+ *                memberi angka target kelas selama admin belum menetapkannya
+ *                sendiri di master kelas.
+ * - `generate()` — aksi EKSPLISIT "buatkan sesi yang belum ada", bukan lagi
+ *                langkah wajib. Tanggalnya masih berjarak mingguan sebagai
+ *                titik awal yang masuk akal; sesudah dibuat, semua tanggal
+ *                bebas diedit tanpa perlu generate ulang.
+ * - `deletePattern()` — membuang konfigurasi BESERTA sesi hasil generate yang
+ *                belum punya riwayat; ditolak seluruhnya bila ada sesi
+ *                ber-laporan/absensi.
+ *
+ * Struktur data tetap: pola = kelompok baris teaching_schedule_templates
+ * dengan (day_of_week, school_id, start_date) yang sama.
  */
 class ScheduleTemplateService
 {
@@ -318,13 +326,17 @@ class ScheduleTemplateService
     }
 
     /**
-     * Generate sesi pertemuan untuk satu baris pola: `meeting_count` tanggal
-     * berulang mingguan mulai dari `start_date` (hari pola itu sendiri).
+     * Buatkan sesi yang belum ada untuk satu baris pola (AKSI EKSPLISIT).
      *
-     * Tidak ada periode global dan tidak ada batas `period_end` — jumlah
-     * pertemuan ditentukan `meeting_count`. Aman dipanggil ulang: sesi yang
-     * sudah ada pada tanggal yang sama dilewati, dan jumlah sesi tidak pernah
-     * melebihi `meeting_count` meski ada sesi yang dipindah karena libur.
+     * Tanggal yang dipakai adalah `start_date` + 7k sebagai titik awal, karena
+     * itu jarak yang paling sering dipakai operator. Setelah sesinya ada,
+     * tanggal tiap pertemuan bebas diedit satu per satu lewat modul jadwal —
+     * generate ulang TIDAK diperlukan hanya untuk memindahkan tanggal, dan
+     * tidak pernah menimpa tanggal yang sudah diubah manual.
+     *
+     * Aman dipanggil ulang: sesi yang sudah ada pada tanggal yang sama
+     * dilewati, jumlah sesi tidak pernah melebihi `meeting_count`, dan nomor
+     * pertemuan sesi lama tidak pernah disusun ulang (lihat renumberSessions).
      *
      * @return array{created: int, skipped: int, warnings: array<int, string>}
      */
@@ -333,7 +345,12 @@ class ScheduleTemplateService
         $capacity = max(1, (int) $template->meeting_count);
 
         $existing = $template->sessions()->orderBy('session_date')->get();
+
+        // Sesi tanpa tanggal (mungkin sejak tanggal jadi opsional) tidak punya
+        // tanggal untuk dibandingkan — tetap dihitung sebagai sesi yang ada,
+        // tapi tidak masuk daftar tanggal terpakai.
         $existingDates = $existing
+            ->filter(fn (TeachingSchedule $session) => $session->session_date !== null)
             ->map(fn (TeachingSchedule $session) => $session->session_date->toDateString())
             ->flip();
 
@@ -350,7 +367,20 @@ class ScheduleTemplateService
         $additionalCoachIds = $template->additionalCoaches->pluck('id')->all();
         $coachIds = array_values(array_unique(array_merge([(int) $template->coach_id], array_map('intval', $additionalCoachIds))));
 
-        $meetingNumber = $existing->count();
+        // Sesi baru mengisi NOMOR PERTEMUAN YANG MASIH KOSONG lebih dulu, bukan
+        // selalu nomor terbesar + 1. Alasannya aturan 4: "reschedule hanya
+        // mengubah `session_date`, `meeting_number` tetap". Kalau satu
+        // pertemuan dihapus (mis. libur) lalu digenerate ulang, lubangnya
+        // diisi sesi baru tanpa menggeser nomor sesi lain yang sudah punya
+        // laporan/absensi.
+        $usedNumbers = $existing
+            ->pluck('meeting_number')
+            ->filter(fn ($number) => $number !== null)
+            ->map(fn ($number) => (int) $number)
+            ->all();
+
+        $freeNumbers = array_values(array_diff(range(1, $capacity), $usedNumbers));
+        $lastNumber = (int) $existing->max('meeting_number');
 
         foreach ($this->candidateDates($template) as $date) {
             if ($created >= $remaining) {
@@ -368,7 +398,6 @@ class ScheduleTemplateService
                 // manual / hasil import lama) — tautkan tanpa menduplikasi.
                 $skipped++;
                 $existingDates->put($dateString, true);
-                $meetingNumber++;
                 continue;
             }
 
@@ -384,7 +413,7 @@ class ScheduleTemplateService
 
             $session = TeachingSchedule::create([
                 'template_id'      => $template->id,
-                'meeting_number'   => ++$meetingNumber,
+                'meeting_number'   => array_shift($freeNumbers) ?? ++$lastNumber,
                 'school_id'        => $template->school_id,
                 'class_id'         => $template->class_id,
                 'program_id'       => $template->program_id,
@@ -447,12 +476,26 @@ class ScheduleTemplateService
     }
 
     /**
-     * Nomor pertemuan selalu urut 1..N mengikuti urutan tanggal, sehingga
-     * penghapusan/pemindahan sesi (libur) tidak meninggalkan nomor bolong.
+     * Penjaga terakhir: pastikan nomor pertemuan berurutan 1..N tanpa bolong.
+     *
+     * URUTANNYA SENGAJA MEMAKAI `meeting_number` YANG SUDAH ADA, bukan
+     * `session_date`. Sejak penjadwalan berbasis sesi (2026-09-29) tanggal
+     * diisi/digeser manual oleh admin, jadi mengurutkan berdasarkan tanggal
+     * berarti memindahkan satu pertemuan bisa diam-diam menukar nomor
+     * pertemuan sesi lain — persis yang dilarang aturan "reschedule hanya
+     * mengubah `session_date`, `meeting_number` tetap".
+     *
+     * Sejak `generate()` mengisi nomor yang kosong lebih dulu, lubang akibat
+     * pertemuan yang dihapus biasanya sudah tertutup sebelum fungsi ini
+     * dipanggil — jadi pada kasus normal fungsi ini tidak mengubah apa pun.
+     * Ia masih diperlukan untuk data lama (nomor bolong / null dari sebelum
+     * refactor).
      */
     private function renumberSessions(TeachingScheduleTemplate $template): void
     {
         $sessions = $template->sessions()
+            ->orderByRaw('meeting_number IS NULL')
+            ->orderBy('meeting_number')
             ->orderBy('session_date')
             ->orderBy('id')
             ->get();
@@ -571,10 +614,17 @@ class ScheduleTemplateService
     }
 
     /**
-     * Hapus seluruh pola (semua baris kelasnya). Sesi yang sudah digenerate
-     * TETAP ADA — hanya tautan template_id yang dilepas (nullOnDelete).
+     * Hapus seluruh pola (semua baris kelasnya) BESERTA sesi hasil generate-nya.
      *
-     * @return array{rows: int, sessions_kept: int}
+     * Aturan final 2026-10-01 (review meeting):
+     * - Sesi hasil generate BUKAN riwayat historis. Kalau polanya dibuang, sesi
+     *   yang belum pernah dipakai (tanpa laporan/absensi/media) ikut terhapus —
+     *   supaya tidak meninggalkan sesi yatim yang masih tampil di jadwal.
+     * - Kalau ADA satu saja sesi yang sudah punya riwayat, seluruh penghapusan
+     *   DITOLAK (`deleted: false`). Tidak ada sesi, laporan, absensi, atau media
+     *   yang dihapus sebagian — operator harus menyelesaikan sesi itu dulu.
+     *
+     * @return array{deleted: bool, rows: int, sessions_deleted: int, sessions_blocking: int}
      */
     public function deletePattern(User $user, int $day, int $schoolId, string $startDate): array
     {
@@ -582,15 +632,41 @@ class ScheduleTemplateService
 
         $templates = TeachingScheduleTemplate::pattern($day, $schoolId, $startDate)->get();
 
-        $sessionsKept = TeachingSchedule::whereIn('template_id', $templates->pluck('id'))->count();
+        if ($templates->isEmpty()) {
+            return ['deleted' => false, 'rows' => 0, 'sessions_deleted' => 0, 'sessions_blocking' => 0];
+        }
 
-        DB::transaction(function () use ($templates): void {
+        $sessions = TeachingSchedule::whereIn('template_id', $templates->pluck('id'))->get();
+
+        $blocking = $sessions->isEmpty()
+            ? 0
+            : TeachingSchedule::whereIn('id', $sessions->pluck('id'))->withHistory()->count();
+
+        if ($blocking > 0) {
+            return ['deleted' => false, 'rows' => 0, 'sessions_deleted' => 0, 'sessions_blocking' => $blocking];
+        }
+
+        $deleted = 0;
+
+        DB::transaction(function () use ($templates, $sessions, &$deleted): void {
+            if ($sessions->isNotEmpty()) {
+                // Hapus sesi lebih dulu selagi tautannya masih ada: sesudah baris
+                // template dihapus, `template_id` sesi menjadi null dan sesi hasil
+                // generate tidak bisa lagi dibedakan dari sesi manual biasa.
+                $deleted = TeachingSchedule::whereIn('id', $sessions->pluck('id'))->delete();
+            }
+
             foreach ($templates as $template) {
                 $template->delete();
             }
         });
 
-        return ['rows' => $templates->count(), 'sessions_kept' => $sessionsKept];
+        return [
+            'deleted' => true,
+            'rows' => $templates->count(),
+            'sessions_deleted' => $deleted,
+            'sessions_blocking' => 0,
+        ];
     }
 
     /**

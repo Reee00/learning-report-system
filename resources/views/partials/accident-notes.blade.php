@@ -1,6 +1,9 @@
 @php
     $accidentNotes = trim((string) ($notes ?? ''));
     $headingId = 'accident-notes-title-'.($reportId ?? 'current');
+    // Opsional: tautan ke laporan asal catatan ini. Dipakai daftar pengingat
+    // pribadi coach, tidak dipakai halaman detail laporan.
+    $accidentReportUrl = $reportUrl ?? null;
 @endphp
 
 @if($accidentNotes !== '')
@@ -12,6 +15,11 @@
         </div>
         <div class="card-body bg-danger-subtle">
             <p class="mb-0" style="white-space: pre-line">{{ $accidentNotes }}</p>
+            @if($accidentReportUrl)
+                <a href="{{ $accidentReportUrl }}" class="btn btn-sm btn-outline-danger rounded-pill mt-3">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Lihat Laporan
+                </a>
+            @endif
         </div>
     </section>
 @endif

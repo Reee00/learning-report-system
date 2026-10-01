@@ -1,0 +1,66 @@
+{
+    "id": "/",
+    "name": "Learning Report System",
+    "short_name": "LRS",
+    "description": "Sistem pelaporan pembelajaran: laporan sesi coach, kehadiran murid, jadwal mengajar, dan review laporan.",
+    "lang": "id",
+    "dir": "ltr",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "display_override": ["standalone", "minimal-ui", "browser"],
+    "orientation": "any",
+    "theme_color": "#4f46e5",
+    "background_color": "#f4f7f9",
+    "categories": ["education", "business", "productivity"],
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "/icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icons/maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Buat Laporan",
+            "short_name": "Buat",
+            "description": "Mulai laporan sesi baru",
+            "url": "/coach/reports/create",
+            "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+        },
+        {
+            "name": "Laporan Saya",
+            "short_name": "Laporan",
+            "description": "Daftar laporan sesi milik coach",
+            "url": "/coach/reports",
+            "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+        },
+        {
+            "name": "Kehadiran",
+            "short_name": "Hadir",
+            "description": "Rekap kehadiran murid",
+            "url": "/attendance",
+            "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+        }
+    ]
+}

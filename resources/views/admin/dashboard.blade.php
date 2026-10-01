@@ -9,7 +9,7 @@
             <i class="bi bi-grid-fill fs-4"></i>
         </div>
         <div>
-            <h4 class="mb-1 fw-bold text-dark">{{ auth()->user()->isSuperAdmin() ? 'SuperAdmin' : 'Relation' }} Dashboard</h4>
+            <h1 class="page-title">{{ auth()->user()->isSuperAdmin() ? 'SuperAdmin' : 'Relation' }} Dashboard</h1>
             <span class="text-muted small">Ringkasan operasional dan aktivitas laporan belajar</span>
         </div>
     </div>

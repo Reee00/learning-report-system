@@ -25,6 +25,22 @@ class DatabaseSeeder extends Seeder
      * Struktur: nama sekolah => center (kolom KEBERANGKATAN) + kelas => program.
      * `classes.school_id` membuat kelas bersifat per-sekolah, jadi label kelas
      * yang sama di dua sekolah tetap dua baris `classes` yang berbeda.
+     *
+     * AKUN DEMO — HANYA UNTUK PENGEMBANGAN:
+     *   Seeder ini membuat akun uji dengan kata sandi bersama `password`.
+     *   Kredensialnya sengaja HANYA didokumentasikan di sini (dan di kode
+     *   seeder di bawah), bukan lagi di markup halaman login — halaman login
+     *   bisa dibuka siapa saja, dan mencantumkan akun beserta kata sandinya di
+     *   sana sama dengan mengumumkan kredensial ke publik.
+     *
+     *     Relation   : admin@lrs.com
+     *     SuperAdmin : superadmin@lrs.com
+     *     Coach      : coach@lrs.com, coach2@lrs.com
+     *     PIC        : pic@lrs.com
+     *     Password   : password
+     *
+     *   JANGAN menjalankan seeder ini di produksi, dan jangan memakai kata
+     *   sandi tersebut untuk akun sungguhan.
      */
     private const DIGISCHOOL = [
         'PENABUR MODERNLAND' => [

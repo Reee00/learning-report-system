@@ -5,7 +5,12 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-file-earmark-text text-primary me-2"></i> Detail Laporan #{{ $report->id }}</h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Arsip Laporan', 'url' => route('admin.reports.index')],
+                ['label' => '#'.$report->id],
+            ]" />
+<h1 class="page-title">Detail Laporan #{{ $report->id }}</h1>
             <p class="text-muted small mb-0">Lihat informasi detail dan kelola status laporan ini.</p>
         </div>
         @php
@@ -76,7 +81,9 @@
                 </div>
             </div>
 
-            {{-- GALERI FOTO --}}
+            {{-- GALERI FOTO — preview tetap seperti semula, ditambah tombol
+                 Download per foto. File tetap dilayani route media
+                 terotorisasi (tidak pernah dipindah ke public). --}}
             @if($report->photos->count() > 0)
             <div class="card shadow-sm border-0 mb-4">
                 <div class="card-header bg-white py-3 border-bottom border-light">
@@ -94,6 +101,11 @@
                                 <div class="position-absolute bottom-0 start-0 w-100 p-2 text-center" style="background: linear-gradient(transparent, rgba(0,0,0,0.7));">
                                     <i class="bi bi-zoom-in text-white opacity-75"></i>
                                 </div>
+                            </a>
+                            <a href="{{ $photo->downloadUrl() }}"
+                               class="btn btn-sm btn-outline-success rounded-pill w-100 mt-2"
+                               title="Download foto ini">
+                                <i class="bi bi-download me-1"></i> Download
                             </a>
                         </div>
                         @endforeach
@@ -121,6 +133,11 @@
                                     <i class="bi bi-zoom-in text-white opacity-75"></i>
                                 </div>
                             </a>
+                            <a href="{{ $att->downloadUrl() }}"
+                               class="btn btn-sm btn-outline-success rounded-pill w-100 mt-2"
+                               title="Download foto bukti absensi ini">
+                                <i class="bi bi-download me-1"></i> Download
+                            </a>
                         </div>
                         @endforeach
                     </div>
@@ -140,9 +157,13 @@
                 <div class="card-body p-4">
                     @foreach($report->videos as $video)
                     <div class="mb-4 last:mb-0">
-                        <div class="d-flex align-items-center mb-2">
-                            <i class="bi bi-play-circle-fill text-danger me-2"></i>
-                            <span class="fw-medium text-dark">{{ $video->original_name ?? 'Video ' . $loop->iteration }}</span>
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="fw-medium text-dark">
+                                <i class="bi bi-play-circle-fill text-danger me-2"></i>{{ $video->original_name ?? 'Video ' . $loop->iteration }}
+                            </span>
+                            <a href="{{ $video->downloadUrl() }}" class="btn btn-sm btn-outline-success rounded-pill px-3">
+                                <i class="bi bi-download me-1"></i> Download Video
+                            </a>
                         </div>
                         <div class="rounded-3 overflow-hidden shadow-sm bg-dark">
                             <video controls class="w-100 d-block" style="max-height: 400px; outline: none;">

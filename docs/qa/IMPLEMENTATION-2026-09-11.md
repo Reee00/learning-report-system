@@ -2,6 +2,17 @@
 
 Date: 2026-09-11. Scope: fix Add Video bug, QA HIGH/MEDIUM fixes, meeting requirements A–G.
 
+> **Catatan sinkronisasi 2026-09-28.** Dokumen ini adalah **laporan status pada 2026-09-11**, bukan deskripsi kondisi terkini. Isinya dipertahankan sebagai catatan sejarah.
+>
+> Yang masih berlaku sampai sekarang: seluruh perbaikan QA dan requirement A–G di bawah; batas unggah PHP pada lingkungan Herd; dan kebutuhan mereplikasi batas unggah tersebut di server non-Herd.
+>
+> Yang **sudah tidak akurat** bila dibaca sebagai kondisi hari ini:
+> - Jumlah test — lihat [Test Results](#4-tests) di bawah.
+> - Modul jadwal mengajar kini punya **dua lapis** (pola/template + sesi bertanggal), bukan hanya hasil impor Excel. Kebutuhan queue worker, PWA, dan Web Push belum ada pada tanggal ini.
+> - Status H-001: per 2026-09-28 **CLOSED** — kredensial Cloudinary lama sudah dihapus/diinvalidasi di sisi penyedia (lihat [HIGH-PRIORITY.md](./HIGH-PRIORITY.md)). Baris H-001 di tabel bawah adalah kondisi 2026-09-11.
+>
+> Status tiap isu QA kini dipelihara di [QA-AUDIT-REPORT.md](./QA-AUDIT-REPORT.md), [HIGH-PRIORITY.md](./HIGH-PRIORITY.md), [MEDIUM-PRIORITY.md](./MEDIUM-PRIORITY.md), dan [LOW-PRIORITY.md](./LOW-PRIORITY.md).
+
 ## 1. Add Video Bug — FIXED
 Root cause: Herd PHP 8.4 `php.ini` limits (`upload_max_filesize=2M`, `post_max_size=8M`) vs form allowing 3 videos × 100 MB; nginx already allowed 128M+.
 - `C:\Users\Nale\.config\herd\bin\php84\php.ini`: `upload_max_filesize=101M`, `post_max_size=310M`, `memory_limit=256M` (backup: `php.ini.bak-20260911`).
@@ -32,12 +43,14 @@ Root cause: Herd PHP 8.4 `php.ini` limits (`upload_max_filesize=2M`, `post_max_s
 - **G. Attendance Media**: `attendance_media[]` upload (max 5 × 10 MB images) stored via `MediaStorageService` under `reports/{year}/{id}/attendance/`; galleries on review/PIC views; listed in download view.
 
 ## 4. Tests
-- `php artisan test`: **131 passed, 481 assertions** (17 new tests in `MeetingRequirementsTest` covering A–G incl. cross-school isolation, reminder scoping, field validation, attendance media caps).
+- `php artisan test` saat itu: **131 passed, 481 assertions** (17 test baru di `MeetingRequirementsTest` mencakup A–G termasuk isolasi antar-sekolah, scope reminder, validasi field, dan batas media kehadiran).
 - Local MySQL migrated: 6 new migrations applied (rollback + re-run verified).
 - `php artisan db:seed` re-run (idempotent).
+
+**Kondisi saat catatan ini ditulis (dijalankan ulang 2026-09-28):** **7 skipped, 459 passed (2354 assertions)**, Duration 50.13s. Satu-satunya sumber skip adalah `AttendanceMysqlOnlyFullGroupByTest` yang memerlukan variabel `TEST_MYSQL_*`. Test JavaScript terpisah: `npm run test:pwa` → 37 pemeriksaan. Angka terbaru selalu ada di [QA-AUDIT-REPORT.md](QA-AUDIT-REPORT.md).
 
 ## 5. Remaining Risks
 - Deployment targets other than local Herd must replicate PHP upload limits at the server PHP level (deployment is not Docker-based; the Dockerfile was removed 2026-09-11).
 - Reminder logic requires schedule imports to be kept current.
-- Cloudinary credential rotation (user action).
-- QA LOW items intentionally not implemented.
+- ~~Cloudinary credential rotation (user action).~~ → **Ditutup 2026-09-28**: kredensial lama sudah dihapus/diinvalidasi di sisi penyedia.
+- QA LOW items intentionally not implemented — per 2026-09-28 seluruh isu LOW sudah tertutup (L-002 RESOLVED; L-006 ACCEPTED / BY DESIGN).

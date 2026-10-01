@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Report;
 use App\Models\SchoolClass;
 use App\Models\TeachingSchedule;
 use App\Models\User;
@@ -42,12 +43,16 @@ class AuthorizationService
             // Relation bertindak operasional-global: boleh assign coach ke
             // kelas (re-use arsitektur CoachClass yang sama dengan SPV Coach).
             'coaches.view',
+            // Nomor WhatsApp coach = data kontak pribadi. Hanya role yang
+            // memang mengoordinasikan coach yang boleh melihatnya.
+            'coaches.contact',
             'coaches.assign',
             'coaches.reassign',
         ],
         'spv_coach' => [
             'dashboard.view',
             'coaches.view',
+            'coaches.contact',
             'coaches.create',
             'coaches.update',
             'coaches.assign',
@@ -68,6 +73,12 @@ class AuthorizationService
             'schedules.view',
         ],
         'school_pic' => [
+            // PIC sekolah perlu melihat daftar coach SEKOLAHNYA beserta nomor
+            // WhatsApp-nya untuk koordinasi harian. Batas sekolahnya ditegakkan
+            // di Admin\CoachController (scope query + abort 403 pada URL
+            // langsung), bukan oleh permission ini.
+            'coaches.view',
+            'coaches.contact',
             'attendance.view',
             'attendance.export',
             'reports.view_all',
@@ -86,7 +97,14 @@ class AuthorizationService
         ],
         'finance' => [
             'attendance.view',
-            'attendance.export_csv',
+            // Review meeting LRS 2026-10-01: Finance mengekspor kehadiran untuk
+            // pelaporan, dan formatnya tidak lagi dibatasi CSV — Excel dan PDF
+            // sama-sama dipakai. Karena itu Finance memakai capability export
+            // PENUH, bukan `attendance.export_csv` (aturan QA M-001 yang lama,
+            // kini digantikan). `attendance.export_csv` tetap ada sebagai
+            // capability terpisah untuk peran "data mentah saja" di masa depan,
+            // tetapi tidak lagi dipegang role mana pun.
+            'attendance.export',
         ],
     ];
 
@@ -141,7 +159,11 @@ class AuthorizationService
      * Penugasan sementara sengaja TIDAK melihat is_active: menonaktifkan sesi
      * menghapus KEWAJIBAN laporan, bukan IZIN menulisnya — kalau tidak, coach
      * yang sesinya dinonaktifkan belakangan akan terkunci dari laporannya
-     * sendiri.
+     * sendiri dan tidak bisa mengoreksi laporan yang ditolak.
+     *
+     * Larangan membuat laporan BARU pada sesi nonaktif (aturan final
+     * 2026-09-28) karena itu ditegakkan terpisah, tepat sebelum baris dibuat:
+     * lihat Coach\ReportController::assertSessionAcceptsReport().
      *
      * `$reportDate` (bila diisi) mengikat izin sementara ke sesi pada tanggal
      * itu saja, sehingga coach tambahan tidak mendapat akses ke seluruh kelas.
@@ -208,5 +230,41 @@ class AuthorizationService
         $schoolIds = $this->accessibleSchoolIds($user);
 
         return $schoolIds === null || in_array($schoolId, $schoolIds, true);
+    }
+
+    /**
+     * Boleh membaca satu laporan ini?
+     *
+     * Satu-satunya tempat aturan akses tingkat-LAPORAN ditulis, supaya halaman
+     * detail coach dan kedua pintu unduhan (coach.reports.download dan
+     * admin.reports.download) tidak pernah berbeda pendapat soal siapa yang
+     * boleh melihat laporan apa.
+     *
+     * Coach: laporan MILIKNYA (`reports.coach_id`), atau laporan dari SESI
+     * mengajar tempat ia terlibat — coach utama maupun coach pendamping.
+     * Batasnya per SESI, bukan per sekolah: coach tidak membuka laporan kelas
+     * lain di sekolah yang sama hanya karena sekolahnya sama. Role coach
+     * sengaja TIDAK memakai canAccessSchool() karena `accessibleSchoolIds()`
+     * mengembalikan null (global) untuk coach — scope sekolah bukan batas yang
+     * benar untuk role ini.
+     *
+     * Role lain: scope sekolah yang sudah berlaku, jadi perilakunya tidak
+     * berubah.
+     */
+    public function canAccessReport(User $user, Report $report): bool
+    {
+        if ($user->role !== User::ROLE_COACH) {
+            return $this->canAccessSchool($user, (int) $report->school_id);
+        }
+
+        if ((int) $report->coach_id === (int) $user->id) {
+            return true;
+        }
+
+        return $report->teaching_schedule_id !== null
+            && TeachingSchedule::query()
+                ->whereKey($report->teaching_schedule_id)
+                ->forCoach((int) $user->id)
+                ->exists();
     }
 }

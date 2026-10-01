@@ -14,7 +14,11 @@
 <div class="container py-4">
     <div class="d-flex flex-column flex-sm-row justify-content-sm-between align-items-stretch align-items-sm-center gap-3 mb-4">
         <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-building text-primary me-2"></i> Master Data Sekolah</h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Sekolah'],
+            ]" />
+<h1 class="page-title">Master Data Sekolah</h1>
             <p class="text-muted small mb-0">Kelola daftar sekolah mitra dan informasi penanggung jawab.</p>
         </div>
         @if($canCreateSchool)
@@ -55,13 +59,6 @@
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
-    @if (session('success'))
-        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
@@ -141,6 +138,8 @@
                             <div class="modal-content border-0 shadow">
                                 <form method="POST" action="{{ route('admin.schools.update', $school) }}">
                                     @csrf @method('PUT')
+                                    <input type="hidden" name="_modal" value="edit">
+                                    <input type="hidden" name="_modal_id" value="{{ $school->id }}">
                                     <div class="modal-header bg-light border-bottom-0">
                                         <h5 class="modal-title fw-bold text-dark" id="editSchoolModalLabel{{ $school->id }}">
                                             <i class="bi bi-pencil-square text-primary me-2"></i> Edit Sekolah
@@ -190,7 +189,7 @@
                 @empty
                     <tr>
                         <td colspan="{{ $hasSchoolActions ? 5 : 4 }}" class="text-center py-5">
-                            <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" alt="No Data" width="64" class="opacity-50 mb-3">
+                            <i class="bi bi-building text-muted opacity-50 mb-3 d-block lh-1" style="font-size: 4rem;" aria-hidden="true"></i>
                             <h6 class="text-muted mb-0">Belum ada sekolah terdaftar.</h6>
                         </td>
                     </tr>
@@ -216,6 +215,7 @@
         <div class="modal-content border-0 shadow">
             <form method="POST" action="{{ route('admin.schools.store') }}">
                 @csrf
+                <input type="hidden" name="_modal" value="add">
                 <div class="modal-header bg-primary text-white border-bottom-0">
                     <h5 class="modal-title fw-bold" id="addSchoolModalLabel">
                         <i class="bi bi-plus-circle me-2"></i> Tambah Sekolah Baru
@@ -288,18 +288,9 @@
     </div>
 </div>
 @endif
+@endsection
 
 @section('scripts')
-<script>
-    // Validasi server mengembalikan pengguna ke halaman ini; buka kembali modal
-    // tambah sekolah agar pesan error terlihat di konteks formulirnya.
-    document.addEventListener('DOMContentLoaded', function () {
-        var hasOldInput = @json(old() !== []);
-        var modal = document.getElementById('addSchoolModal');
-        if (hasOldInput && modal && typeof bootstrap !== 'undefined') {
-            new bootstrap.Modal(modal).show();
-        }
-    });
-</script>
-@endsection
+    @include('partials.modal-reopen', ['modalId' => 'addSchoolModal', 'when' => old('_modal') === 'add'])
+    @include('partials.modal-reopen', ['modalId' => 'editSchoolModal'.old('_modal_id'), 'when' => old('_modal') === 'edit'])
 @endsection

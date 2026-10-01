@@ -23,9 +23,12 @@
             <a href="{{ route('admin.schools.index') }}" class="btn btn-sm btn-outline-secondary mb-2">
                 <i class="bi bi-arrow-left"></i> Kembali ke Master Sekolah
             </a>
-            <h4 class="mb-1 fw-bold text-break">
-                <i class="bi bi-building text-primary me-2"></i>{{ $school->name }}
-            </h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Sekolah', 'url' => route('admin.schools.index')],
+                ['label' => $school->name],
+            ]" />
+<h1 class="page-title">{{ $school->name }}</h1>
             <p class="text-muted small mb-0">
                 Workspace sekolah — kelola kelas dan program di satu halaman.
             </p>
@@ -37,20 +40,6 @@
             </button>
         @endif
     </div>
-
-    @if (session('success'))
-        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
-    @if (session('error'))
-        <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
 
     @if ($errors->any())
         <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
@@ -165,13 +154,15 @@
                                         @endif
                                         @if($canDeleteClass)
                                             <form method="POST"
-                                                  action="{{ route('admin.schools.classes.destroy', [$school, $class]) }}"
-                                                  onsubmit="return confirm('Hapus kelas {{ $class->name }} dari {{ $school->name }}?');">
+                                                  id="deleteClassForm{{ $class->id }}"
+                                                  action="{{ route('admin.schools.classes.destroy', [$school, $class]) }}">
                                                 @csrf @method('DELETE')
-                                                <button type="submit"
+                                                <button type="button"
+                                                        onclick="confirmSubmitForm('deleteClassForm{{ $class->id }}', 'Hapus kelas {{ $class->name }} dari {{ $school->name }}?', 'btn-danger', 'Ya, Hapus')"
                                                         class="btn btn-sm btn-light border text-danger rounded-pill px-3"
-                                                        title="Hapus kelas">
-                                                    <i class="bi bi-trash-fill"></i>
+                                                        title="Hapus kelas"
+                                                        aria-label="Hapus kelas {{ $class->name }}">
+                                                    <i class="bi bi-trash-fill" aria-hidden="true"></i>
                                                 </button>
                                             </form>
                                         @endif

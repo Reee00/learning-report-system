@@ -229,7 +229,7 @@ class AttendanceExcelPdfExportTest extends TestCase
         $this->assertCount(4, $eri);
     }
 
-    public function test_finance_cannot_export_excel_or_pdf_but_csv_works(): void
+    public function test_finance_can_export_csv_excel_and_pdf_without_any_school_plot(): void
     {
         $finance = $this->makeUser('finance@test.test', User::ROLE_FINANCE);
         // Finance tidak lagi bergantung pada plot sekolah: scope-nya all-school
@@ -238,15 +238,22 @@ class AttendanceExcelPdfExportTest extends TestCase
         // tidak lagi menyempitkan aksesnya.
         $finance->schools()->sync([$this->schoolA->id]);
 
+        // Review meeting LRS 2026-10-01: aturan lama QA M-001 yang membatasi
+        // Finance ke CSV saja DIGANTIKAN — Finance memegang `attendance.export`
+        // sehingga ketiga format tersedia untuk pelaporannya.
         $this->actingAs($finance)
             ->get(route('attendance.export', ['format' => 'excel']))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertHeader(
+                'Content-Type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            );
 
         $this->actingAs($finance)
             ->get(route('attendance.export', ['format' => 'pdf']))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
 
-        // CSV data mentah tetap boleh untuk Finance.
         $csv = $this->actingAs($finance)
             ->get(route('attendance.export', ['format' => 'csv']))
             ->assertOk()

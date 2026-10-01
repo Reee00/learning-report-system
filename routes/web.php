@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Coach\ReportController as CoachReportController;
 use App\Http\Controllers\Coach\StudentController as CoachStudentController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboard;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Admin\SchoolController;
 use App\Http\Controllers\Admin\ClassController;
 use App\Http\Controllers\Admin\ProgramController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SchoolPic\DashboardController as PicDashboard;
 use Illuminate\Support\Facades\Route;
@@ -58,6 +60,36 @@ Route::middleware('auth')->group(function () {
         ->name('students.template');
 });
 
+// ===== PWA WEB PUSH (Phase 2) =====
+// Pendaftaran perangkat untuk notifikasi push. Terbuka untuk SEMUA role yang
+// login — bukan hanya coach — karena kanal push melekat pada user, bukan pada
+// peran, dan target penerima notifikasi tetap ditentukan oleh service yang
+// sudah ada (tidak berubah di sini).
+//
+// Pemilik subscription selalu diambil dari user yang login, tidak pernah dari
+// input klien. CSRF aktif lewat middleware web.
+Route::middleware('auth')->group(function () {
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])
+        ->name('push-subscriptions.store');
+    Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])
+        ->name('push-subscriptions.destroy');
+});
+
+// ===== ACCOUNT SETTINGS (SEMUA ROLE) =====
+// Setiap user yang login boleh membuka dan mengubah AKUNNYA SENDIRI — Nama,
+// Nomor WhatsApp, dan password. Tidak ada permission middleware karena tidak
+// ada wewenang administratif di sini: target selalu diambil dari sesi login,
+// bukan dari parameter URL, jadi tidak ada id user yang bisa dimanipulasi.
+Route::middleware('auth')->group(function () {
+    Route::get('account', [AccountController::class, 'edit'])->name('account.edit');
+    Route::patch('account', [AccountController::class, 'update'])->name('account.update');
+    // Ganti password sendiri. Dipisah dari `account.update` supaya kegagalan
+    // konfirmasi password tidak pernah membatalkan penyimpanan profil, dan
+    // sebaliknya. Wajib menyertakan password saat ini (lihat controller).
+    Route::patch('account/password', [AccountController::class, 'updatePassword'])
+        ->name('account.password.update');
+});
+
 // ===== COACH REPORT ROUTES =====
 // Coach report routes remain role-scoped and now also require the relevant capability.
 Route::middleware(['auth', 'role:coach'])->prefix('coach')->name('coach.')->group(function () {
@@ -70,6 +102,13 @@ Route::middleware(['auth', 'role:coach'])->prefix('coach')->name('coach.')->grou
     Route::post('reports', [CoachReportController::class, 'store'])
         ->middleware('permission:reports.create')
         ->name('reports.store');
+    // Detail laporan (baca-saja) untuk coach: laporan miliknya sendiri, atau
+    // laporan sesi tempat ia mengajar sebagai coach pendamping. Otorisasinya
+    // sama persis dengan coach.reports.download — lihat
+    // Coach\ReportController::authorizeReportAccess().
+    Route::get('reports/{report}', [CoachReportController::class, 'show'])
+        ->middleware('permission:reports.view')
+        ->name('reports.show');
     Route::get('reports/{report}/edit', [CoachReportController::class, 'edit'])
         ->middleware('permission:reports.update')
         ->name('reports.edit');
@@ -79,6 +118,14 @@ Route::middleware(['auth', 'role:coach'])->prefix('coach')->name('coach.')->grou
     Route::get('reports/{report}/download', [CoachReportController::class, 'download'])
         ->middleware('permission:reports.download')
         ->name('reports.download');
+
+    // Accident Notes = pengingat PRIBADI coach: isi kolom `reports.notes` pada
+    // laporan miliknya sendiri. Dipisah dari "Laporan Saya" supaya daftar itu
+    // murni riwayat laporan, dan sengaja bukan notification center: tidak ada
+    // database notification maupun web push yang dibuat dari catatan ini.
+    Route::get('accident-notes', [CoachReportController::class, 'accidentNotes'])
+        ->middleware('permission:accident_notes.view')
+        ->name('accident-notes.index');
 
     // Coach: view list of assigned classes and manage their students.
     // class_id is always resolved from the coach assignment in the backend.
@@ -132,6 +179,12 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('reports', [AdminReportController::class, 'index'])
         ->middleware('permission:reports.view_all')
         ->name('reports.index');
+    // REVIEW dipisah dari ARSIP (aturan final 2026-09-28): halaman ini antrean
+    // kerja — laporan menunggu keputusan & laporan yang perlu dikoreksi.
+    // Didaftarkan SEBELUM 'reports/{report}' agar tidak tertangkap sebagai id.
+    Route::get('reports/review', [AdminReportController::class, 'review'])
+        ->middleware('permission:reports.review')
+        ->name('reports.review');
     Route::get('reports/{report}', [AdminReportController::class, 'show'])
         ->middleware('permission:reports.view_all')
         ->name('reports.show');
@@ -169,6 +222,12 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('schedules/create', [\App\Http\Controllers\Admin\ScheduleController::class, 'create'])
         ->middleware('permission:schedules.manage')
         ->name('schedules.create');
+
+    // Form SATU pertemuan (penjadwalan manual). WAJIB sebelum
+    // `schedules/{schedule}` supaya "session" tidak dibaca sebagai id jadwal.
+    Route::get('schedules/session/create', [\App\Http\Controllers\Admin\ScheduleController::class, 'createSession'])
+        ->middleware('permission:schedules.manage')
+        ->name('schedules.sessions.create');
     Route::post('schedules', [\App\Http\Controllers\Admin\ScheduleController::class, 'store'])
         ->middleware('permission:schedules.manage')
         ->name('schedules.store');
@@ -230,6 +289,17 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::patch('schedules/{schedule}/active', [\App\Http\Controllers\Admin\ScheduleController::class, 'toggleActive'])
         ->middleware('permission:schedules.manage')
         ->name('schedules.toggle-active');
+
+    // Penjadwalan berbasis sesi (2026-09-29): pindah tanggal dan ubah status
+    // pertemuan punya aksi sendiri supaya `meeting_number` tidak pernah ikut
+    // berubah dan regenerate tidak diperlukan hanya untuk memindah tanggal.
+    Route::patch('schedules/{schedule}/reschedule', [\App\Http\Controllers\Admin\ScheduleController::class, 'reschedule'])
+        ->middleware('permission:schedules.manage')
+        ->name('schedules.reschedule');
+
+    Route::patch('schedules/{schedule}/status', [\App\Http\Controllers\Admin\ScheduleController::class, 'setStatus'])
+        ->middleware('permission:schedules.manage')
+        ->name('schedules.status');
 
     // Pola jadwal per HARI + SEKOLAH (refactor 2026-09-25).
     //

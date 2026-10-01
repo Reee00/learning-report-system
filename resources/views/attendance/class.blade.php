@@ -11,44 +11,40 @@
 @endphp
 
 <div class="container py-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-1 small">
-            <li class="breadcrumb-item"><a href="{{ route('attendance.index') }}">Attendance</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('attendance.school', $school) }}">{{ $school->name }}</a></li>
-            <li class="breadcrumb-item active" aria-current="page">{{ $class->name }}</li>
-        </ol>
-    </nav>
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <div>
-            <a href="{{ route('attendance.school', $school) }}" class="btn btn-light border shadow-sm btn-sm mb-2">
-                <i class="bi bi-arrow-left me-1"></i> Kembali
+    <x-page-header
+        title="{{ $class->name }}"
+        description="{{ $school->name }} — pilih tanggal sesi untuk melihat kehadiran per murid."
+        :breadcrumbs="[
+            ['label' => 'Attendance', 'url' => ctx_route('attendance.index', [], true)],
+            ['label' => $school->name, 'url' => ctx_route('attendance.school', $school, true)],
+            ['label' => $class->name],
+        ]"
+    >
+        <x-slot:meta>
+            <a href="{{ ctx_route('attendance.school', $school, true) }}" class="small text-decoration-none">
+                <i class="bi bi-arrow-left me-1" aria-hidden="true"></i> Kembali ke {{ $school->name }}
             </a>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-people text-primary me-2"></i> {{ $class->name }}</h4>
-            <p class="text-muted small mb-0">
-                {{ $school->name }} &mdash; pilih tanggal sesi untuk melihat kehadiran per murid.
-            </p>
-        </div>
+        </x-slot:meta>
+
         {{-- Satu-satunya lokasi tombol unduh (keputusan UX 2026-09-14):
              detail kelas terpilih. Konteks school_id + class_id otomatis
              dari halaman ini; otorisasi & scope tetap divalidasi server. --}}
         @if($canExportCsv || $canExportPdf)
-            <div class="d-flex gap-2 flex-wrap">
-                @if($canExportPdf)
-                <a href="{{ route('attendance.export', array_merge(request()->only(['date_from', 'date_to']), ['school_id' => $school->id, 'class_id' => $class->id, 'format' => 'excel'])) }}" class="btn btn-success shadow-sm d-flex align-items-center gap-2">
-                    <i class="bi bi-file-earmark-excel"></i> Unduh Excel
+            @if($canExportPdf)
+                <a href="{{ route('attendance.export', array_merge(request()->only(['date_from', 'date_to']), ['school_id' => $school->id, 'class_id' => $class->id, 'format' => 'excel'])) }}" class="btn btn-success d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Unduh Excel
                 </a>
-                <a href="{{ route('attendance.export', array_merge(request()->only(['date_from', 'date_to']), ['school_id' => $school->id, 'class_id' => $class->id, 'format' => 'pdf'])) }}" class="btn btn-danger shadow-sm d-flex align-items-center gap-2">
-                    <i class="bi bi-filetype-pdf"></i> Unduh PDF
+                <a href="{{ route('attendance.export', array_merge(request()->only(['date_from', 'date_to']), ['school_id' => $school->id, 'class_id' => $class->id, 'format' => 'pdf'])) }}" class="btn btn-danger d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-filetype-pdf" aria-hidden="true"></i> Unduh PDF
                 </a>
-                @endif
-                @if($canExportCsv)
-                <a href="{{ route('attendance.export', array_merge(request()->only(['date_from', 'date_to']), ['school_id' => $school->id, 'class_id' => $class->id, 'format' => 'csv'])) }}" class="btn btn-outline-secondary shadow-sm d-flex align-items-center gap-2" title="Data mentah untuk integrasi sistem">
-                    <i class="bi bi-filetype-csv"></i> Unduh CSV
+            @endif
+            @if($canExportCsv)
+                <a href="{{ route('attendance.export', array_merge(request()->only(['date_from', 'date_to']), ['school_id' => $school->id, 'class_id' => $class->id, 'format' => 'csv'])) }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" title="Data mentah untuk integrasi sistem">
+                    <i class="bi bi-filetype-csv" aria-hidden="true"></i> Unduh CSV
                 </a>
-                @endif
-            </div>
+            @endif
         @endif
-    </div>
+    </x-page-header>
 
     @if ($errors->any())
         <div class="alert alert-danger border-0 shadow-sm">
@@ -107,7 +103,7 @@
                         {{ \Carbon\Carbon::parse($dateKey)->translatedFormat('l, d M Y') }}
                     </div>
                     @foreach($dateSessions as $session)
-                        <a href="{{ route('attendance.session', $session) }}"
+                        <a href="{{ ctx_route('attendance.session', $session) }}"
                            class="d-block text-decoration-none border border-light-subtle rounded-3 p-3 mb-2 shadow-sm bg-white">
                             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                                 <div>

@@ -5,7 +5,12 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-clipboard-data text-primary me-2"></i> Detail Activity Log #{{ $log->id }}</h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Activity Log', 'url' => route('admin.activity-logs.index')],
+                ['label' => '#'. $log->id],
+            ]" />
+<h1 class="page-title">Detail Activity Log #{{ $log->id }}</h1>
             <p class="text-muted small mb-0">{{ $log->created_at->format('d F Y, H:i:s') }} ({{ $log->created_at->diffForHumans() }})</p>
         </div>
         <a href="{{ route('admin.activity-logs.index') }}" class="btn btn-light border d-flex align-items-center gap-2">

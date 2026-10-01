@@ -15,7 +15,11 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-book-half text-primary me-2"></i> Master Data Program</h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Program'],
+            ]" />
+<h1 class="page-title">Master Data Program</h1>
             <p class="text-muted small mb-0">Kelola daftar program pelajaran dan distribusinya ke kelas-kelas.</p>
         </div>
         @if($canCreateProgram)
@@ -44,12 +48,6 @@
         </div>
     </div>
 
-    @if (session('success'))
-        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
     @if ($errors->any())
         <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
             <div class="d-flex align-items-center mb-2">
@@ -134,7 +132,10 @@
                         <div class="modal-dialog modal-lg modal-dialog-centered">
                             <div class="modal-content border-0 shadow">
                                 <form method="POST" action="{{ route('admin.programs.update', $program) }}">
-                                    @csrf @method('PUT')
+                                    @csrf
+                                    <input type="hidden" name="_modal" value="edit">
+                                    <input type="hidden" name="_modal_id" value="{{ $program->id }}">
+                                    @method('PUT')
                                     <div class="modal-header bg-primary text-white border-bottom-0">
                                         <h5 class="modal-title fw-bold"><i class="bi bi-pencil me-2"></i> Edit Program</h5>
                                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -191,7 +192,7 @@
                 @empty
                     <tr>
                         <td colspan="5" class="text-center py-5">
-                            <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" alt="No Data" width="64" class="opacity-50 mb-3">
+                            <i class="bi bi-book-half text-muted opacity-50 mb-3 d-block lh-1" style="font-size: 4rem;" aria-hidden="true"></i>
                             <h6 class="text-muted mb-0">Belum ada program.</h6>
                         </td>
                     </tr>
@@ -213,6 +214,7 @@
         <div class="modal-content border-0 shadow">
             <form method="POST" action="{{ route('admin.programs.store') }}">
                 @csrf
+                <input type="hidden" name="_modal" value="add">
                 <div class="modal-header bg-primary text-white border-bottom-0">
                     <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle me-2"></i> Tambah Program Baru</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -264,4 +266,6 @@
     </div>
 </div>
 @endif
+@include('partials.modal-reopen', ['modalId' => 'editProgramModal'.old('_modal_id'), 'when' => old('_modal') === 'edit'])
+@include('partials.modal-reopen', ['modalId' => 'addProgramModal', 'when' => old('_modal') === 'add'])
 @endsection

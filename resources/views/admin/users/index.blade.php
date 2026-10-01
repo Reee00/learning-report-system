@@ -5,7 +5,11 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-people-fill text-primary me-2"></i> Manajemen Akun</h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Akun'],
+            ]" />
+<h1 class="page-title">Manajemen Akun</h1>
             <p class="text-muted small mb-0">Kelola akses pengguna, role, dan penugasan sekolah.</p>
         </div>
         <button class="btn btn-primary shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalTambahAkun">
@@ -126,7 +130,10 @@
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content border-0 shadow">
                                 <form method="POST" action="{{ route('admin.users.update', $user) }}">
-                                    @csrf @method('PUT')
+                                    @csrf
+                                    <input type="hidden" name="_modal" value="edit">
+                                    <input type="hidden" name="_modal_id" value="{{ $user->id }}">
+                                    @method('PUT')
                                     <div class="modal-header bg-light border-bottom-0">
                                         <h5 class="modal-title fw-bold text-dark"><i class="bi bi-pencil-square text-primary me-2"></i> Edit Akun</h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -176,6 +183,8 @@
                             <div class="modal-content border-0 shadow">
                                 <form method="POST" action="{{ route('admin.users.reset-password', $user) }}">
                                     @csrf @method('PATCH')
+                                    <input type="hidden" name="_modal" value="reset">
+                                    <input type="hidden" name="_modal_id" value="{{ $user->id }}">
                                     <div class="modal-header bg-warning text-dark border-bottom-0">
                                         <h5 class="modal-title fw-bold"><i class="bi bi-key-fill me-2"></i> Reset Password</h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -227,7 +236,7 @@
                 @empty
                     <tr>
                         <td colspan="5" class="text-center py-5">
-                            <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" alt="No Data" width="64" class="opacity-50 mb-3">
+                            <i class="bi bi-people text-muted opacity-50 mb-3 d-block lh-1" style="font-size: 4rem;" aria-hidden="true"></i>
                             <h6 class="text-muted mb-0">Tidak ada akun ditemukan.</h6>
                         </td>
                     </tr>
@@ -249,6 +258,7 @@
         <div class="modal-content border-0 shadow">
             <form method="POST" action="{{ route('admin.users.store') }}">
                 @csrf
+                <input type="hidden" name="_modal" value="add">
                 <div class="modal-header bg-primary text-white border-bottom-0">
                     <h5 class="modal-title fw-bold"><i class="bi bi-person-plus-fill me-2"></i> Tambah Akun Baru</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -324,4 +334,7 @@ function toggleSchoolField(selectEl, targetId) {
     }
 }
 </script>
+@include('partials.modal-reopen', ['modalId' => 'modalEdit'.old('_modal_id'), 'when' => old('_modal') === 'edit'])
+@include('partials.modal-reopen', ['modalId' => 'modalTambahAkun', 'when' => old('_modal') === 'add'])
+@include('partials.modal-reopen', ['modalId' => 'modalReset'.old('_modal_id'), 'when' => old('_modal') === 'reset'])
 @endsection

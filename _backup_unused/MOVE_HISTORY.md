@@ -7,9 +7,9 @@
 
 | No | Original Path | Backup Path | Type | Reason | Evidence |
 |---|---|---|---|---|---|
-| 1 | `_audit_db.php` | `_backup_unused/_audit_db.php` | File | Debug script (dev debris) | Flagged for removal in `docs/stabilization/stabilization-report.md`. Not used by app runtime. |
-| 2 | `_dbcheck.php` | `_backup_unused/_dbcheck.php` | File | Debug script (dev debris) | Flagged for removal in `docs/stabilization/stabilization-report.md`. Exposes credentials. Not used. |
-| 3 | `_logincheck.php` | `_backup_unused/_logincheck.php` | File | Debug script (dev debris) | Flagged for removal in `docs/stabilization/stabilization-report.md`. Contains demo credentials. Not used. |
+| 1 | `_audit_db.php` | `_backup_unused/_audit_db.php` | File | Debug script (dev debris) | Flagged for removal in `docs/historical/README.md`. Not used by app runtime. |
+| 2 | `_dbcheck.php` | `_backup_unused/_dbcheck.php` | File | Debug script (dev debris) | Flagged for removal in `docs/historical/README.md`. Exposes credentials. Not used. |
+| 3 | `_logincheck.php` | `_backup_unused/_logincheck.php` | File | Debug script (dev debris) | Flagged for removal in `docs/historical/README.md`. Contains demo credentials. Not used. |
 | 4 | `test_results.txt` | `_backup_unused/test_results.txt` | File | Output log | Static text output of previous test runs. No reference found in the codebase. |
 | 5 | `routes.json` | `_backup_unused/routes.json` | File | Output log | Exported JSON of routes. No reference found in the codebase. |
 | 6 | `resources/views/welcome.blade.php` | `_backup_unused/resources/views/welcome.blade.php` | File | Unused Blade View | `routes/web.php` explicitly redirects `/` to `/login`. No references to `welcome` view found in codebase. |

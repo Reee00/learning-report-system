@@ -145,9 +145,15 @@ class EndToEndFlowTest extends TestCase
         $this->assertSame($school->id, $report->school_id);
         $this->assertSame(3, $report->attendances()->count());
 
-        // Coach sees the accident note on their own report list.
+        // Accident Notes kini punya menu sendiri: tidak lagi menempel di
+        // halaman "Laporan Saya", dan tidak pernah menjadi notification item.
         $this->actingAs($coach)
             ->get(route('coach.reports.index'))
+            ->assertOk()
+            ->assertDontSee('Bela terjatuh saat istirahat dan sudah ditangani UKS.');
+
+        $this->actingAs($coach)
+            ->get(route('coach.accident-notes.index'))
             ->assertOk()
             ->assertSee('Accident Notes')
             ->assertSee('Bela terjatuh saat istirahat dan sudah ditangani UKS.');

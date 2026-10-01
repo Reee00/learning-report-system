@@ -5,7 +5,11 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-send text-primary me-2"></i> Kirim Notifikasi ke Coach</h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Kirim Notifikasi'],
+            ]" />
+<h1 class="page-title">Kirim Notifikasi ke Coach</h1>
             <p class="text-muted small mb-0">
                 @if(auth()->user()->role === \App\Models\User::ROLE_SCHOOL_PIC)
                     Pilih coach yang mengajar di sekolah Anda.

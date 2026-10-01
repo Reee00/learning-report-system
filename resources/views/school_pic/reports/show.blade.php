@@ -2,10 +2,22 @@
 @section('title', 'Detail Laporan')
 @section('content')
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4>Detail Laporan</h4>
-        <span class="badge bg-success fs-6">Approved</span>
-    </div>
+    <x-page-header
+        title="Detail Laporan #{{ $report->id }}"
+        description="{{ $report->schoolClass->name ?? '' }} — {{ $report->report_date->format('d M Y') }}"
+        :breadcrumbs="[
+            ['label' => 'Dashboard', 'url' => route('pic.dashboard')],
+            ['label' => 'Laporan'],
+            ['label' => '#'.$report->id],
+        ]"
+    >
+        <x-slot:meta>
+            <a href="{{ ctx_back_url(route('pic.dashboard')) }}" class="small text-decoration-none">
+                <i class="bi bi-arrow-left me-1" aria-hidden="true"></i> Kembali
+            </a>
+        </x-slot:meta>
+        <span class="badge bg-success">{{ ucfirst($report->status) }}</span>
+    </x-page-header>
 
     @include('partials.accident-notes', [
         'notes' => $report->notes,
@@ -27,7 +39,8 @@
         </div>
     </div>
 
-{{-- GALERI FOTO --}}
+{{-- GALERI FOTO — preview tetap, ditambah tombol Download per foto.
+     File tetap dilayani route media terotorisasi yang sama. --}}
 @if($report->photos->count() > 0)
 <div class="card mb-3">
     <div class="card-header fw-semibold">
@@ -42,6 +55,11 @@
                          class="img-fluid rounded"
                          style="height:150px;width:100%;object-fit:cover;"
                          alt="Foto {{ $loop->iteration }}">
+                </a>
+                <a href="{{ $photo->downloadUrl() }}"
+                   class="btn btn-sm btn-outline-success rounded-pill w-100 mt-2"
+                   title="Download foto ini">
+                    <i class="bi bi-download me-1"></i> Download
                 </a>
             </div>
             @endforeach
@@ -66,6 +84,11 @@
                          style="height:150px;width:100%;object-fit:cover;"
                          alt="Bukti Absensi {{ $loop->iteration }}">
                 </a>
+                <a href="{{ $att->downloadUrl() }}"
+                   class="btn btn-sm btn-outline-success rounded-pill w-100 mt-2"
+                   title="Download foto bukti absensi ini">
+                    <i class="bi bi-download me-1"></i> Download
+                </a>
             </div>
             @endforeach
         </div>
@@ -82,9 +105,14 @@
     <div class="card-body">
         @foreach($report->videos as $video)
         <div class="mb-3">
-            <p class="small text-muted mb-1">
-                {{ $video->original_name ?? 'Video ' . $loop->iteration }}
-            </p>
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <p class="small text-muted mb-0">
+                    {{ $video->original_name ?? 'Video ' . $loop->iteration }}
+                </p>
+                <a href="{{ $video->downloadUrl() }}" class="btn btn-sm btn-outline-success rounded-pill px-3">
+                    <i class="bi bi-download me-1"></i> Download Video
+                </a>
+            </div>
             <video controls
                    class="w-100 rounded"
                    style="max-height: 400px;">

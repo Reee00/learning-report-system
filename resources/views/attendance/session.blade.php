@@ -24,17 +24,15 @@
 @endphp
 
 <div class="container py-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-1 small">
-            <li class="breadcrumb-item"><a href="{{ route('attendance.index') }}">Attendance</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('attendance.school', $report->school_id) }}">{{ $report->school->name }}</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('attendance.class', [$report->school_id, $report->class_id]) }}">{{ $report->schoolClass->name }}</a></li>
-            <li class="breadcrumb-item active" aria-current="page">{{ $report->report_date->translatedFormat('d M Y') }}</li>
-        </ol>
-    </nav>
+    <x-breadcrumb :items="[
+        ['label' => 'Attendance', 'url' => ctx_route('attendance.index', [], true)],
+        ['label' => $report->school->name, 'url' => ctx_route('attendance.school', $report->school_id, true)],
+        ['label' => $report->schoolClass->name, 'url' => ctx_route('attendance.class', [$report->school_id, $report->class_id], true)],
+        ['label' => $report->report_date->translatedFormat('d M Y')],
+    ]" />
 
-    <a href="{{ route('attendance.class', [$report->school_id, $report->class_id]) }}" class="btn btn-light border shadow-sm btn-sm mb-2">
-        <i class="bi bi-arrow-left me-1"></i> Kembali
+    <a href="{{ ctx_route('attendance.class', [$report->school_id, $report->class_id], true) }}" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="bi bi-arrow-left me-1" aria-hidden="true"></i> Kembali
     </a>
 
     <div class="card shadow-sm border-0 mb-4">
@@ -45,8 +43,8 @@
                     <div class="small text-muted text-uppercase lh-1 mt-1" style="font-size: 0.7rem;">{{ $report->report_date->translatedFormat('M Y') }}</div>
                 </div>
                 <div>
-                    <h5 class="mb-1 fw-bold">{{ $report->school->name }} &mdash; {{ $report->schoolClass->name }}</h5>
-                    <p class="text-muted small mb-0">
+                    <h1 class="page-title mb-1">{{ $report->school->name }} &mdash; {{ $report->schoolClass->name }}</h1>
+                    <p class="page-subtitle mb-0">
                         {{ $report->report_date->translatedFormat('l, d M Y') }} &bull; Coach {{ $report->coach->name }}
                         &bull; {{ $attendances->count() }} murid tercatat
                     </p>

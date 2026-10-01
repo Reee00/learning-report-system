@@ -11,7 +11,7 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-list-task text-primary me-2"></i> Daftar Pola Jadwal</h4>
+            <h1 class="page-title">Daftar Pola Jadwal</h1>
             <p class="text-muted small mb-0">
                 Pola berulang per <strong>hari + sekolah</strong>. Setiap pola punya tanggal mulai dan
                 jumlah pertemuan sendiri. Pertemuan yang sudah tergenerate ada di
@@ -24,19 +24,6 @@
             <i class="bi bi-plus-lg me-1"></i> Tambah Pola Jadwal
         </a>
     </div>
-
-    @if (session('success'))
-        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-    @if (session('error'))
-        <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
 
     {{-- Filter hari: default semua hari --}}
     <div class="card shadow-sm border-0 mb-3">
@@ -97,15 +84,17 @@
                             </button>
                         </form>
                         <form method="POST" action="{{ route('admin.schedules.pattern.destroy') }}"
-                              onsubmit="return confirm('Hapus pola {{ $pattern['day_label'] }} — {{ $school->name ?? '' }}? Sesi yang sudah tergenerate TETAP tersimpan sebagai jadwal biasa.');">
+                              id="deletePatternForm{{ $school?->id ?? 'all' }}-{{ $pattern['day_of_week'] }}">
                             @csrf
                             @method('DELETE')
                             <input type="hidden" name="day" value="{{ $pattern['day_of_week'] }}">
                             <input type="hidden" name="school_id" value="{{ $school?->id }}">
                             <input type="hidden" name="start_date" value="{{ $pattern['start_date']?->toDateString() }}">
                             <input type="hidden" name="label" value="{{ $pattern['day_label'] }} — {{ $school->name ?? 'Sekolah' }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus pola (sesi tetap ada)">
-                                <i class="bi bi-trash"></i>
+                            <button type="button"
+                                    onclick="confirmSubmitForm('deletePatternForm{{ $school?->id ?? 'all' }}-{{ $pattern['day_of_week'] }}', 'Hapus pola {{ $pattern['day_label'] }} — {{ $school->name ?? '' }} beserta pertemuan hasil generate-nya? Pola yang pertemuannya sudah punya laporan/absensi tidak bisa dihapus.', 'btn-danger', 'Ya, Hapus')"
+                                    class="btn btn-sm btn-outline-danger" title="Hapus pola beserta pertemuan hasil generate-nya" aria-label="Hapus pola {{ $pattern['day_label'] }}">
+                                <i class="bi bi-trash" aria-hidden="true"></i>
                             </button>
                         </form>
                     </div>

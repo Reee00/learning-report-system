@@ -6,17 +6,10 @@
     {{-- Halaman landing attendance: TIDAK ada tombol unduh (keputusan UX
          2026-09-14). Unduh hanya muncul di detail kelas terpilih, dengan
          konteks sekolah + kelas saat itu. --}}
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-1 small">
-                    <li class="breadcrumb-item active" aria-current="page">Attendance</li>
-                </ol>
-            </nav>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-calendar-check text-primary me-2"></i> Data Kehadiran Siswa</h4>
-            <p class="text-muted small mb-0">Pilih sekolah untuk melihat kehadiran per kelas dan tanggal.</p>
-        </div>
-    </div>
+    <x-page-header
+        title="Data Kehadiran Siswa"
+        description="Pilih sekolah untuk melihat kehadiran per kelas dan tanggal."
+    />
 
     @if ($errors->any())
         <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
@@ -73,7 +66,10 @@
         </div>
         <div class="card-body p-4">
             @forelse($schools as $schoolRow)
-                <a href="{{ route('attendance.school', $schoolRow->school_id) }}"
+                {{-- Filter tanggal dibawa ke halaman berikutnya lewat ctx_route(),
+                     supaya rentang yang sedang dilihat tidak hilang saat user
+                     masuk ke satu sekolah. --}}
+                <a href="{{ ctx_route('attendance.school', $schoolRow->school_id) }}"
                    class="d-block text-decoration-none border border-light-subtle rounded-3 p-3 mb-3 shadow-sm bg-white hover-bg-light">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                         <div class="d-flex align-items-center gap-3">

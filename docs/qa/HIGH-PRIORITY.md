@@ -1,120 +1,75 @@
 # HIGH PRIORITY ISSUES — LRS QA Audit
 
-Semua issue di bawah ini bersifat HIGH priority dan harus ditangani **segera** sebelum deployment atau dalam sprint yang sedang berjalan.
+**Status diperbarui: 2026-09-28.** Dokumen ini adalah subset dari [QA-AUDIT-REPORT.md](./QA-AUDIT-REPORT.md) — hanya berisi isu dengan severity HIGH.
+
+> **Redaksi keamanan (2026-09-28).** Nilai kredensial Cloudinary yang sebelumnya tertulis apa adanya di dokumen ini sudah diganti placeholder. **CLOSED 2026-09-28** — kredensial lama sudah dihapus/diinvalidasi di sisi penyedia, sehingga salinan yang tersisa di riwayat git tidak lagi dapat dipakai. Lihat [12_KEAMANAN_PEMELIHARAAN_PENGEMBANGAN.md](../12_KEAMANAN_PEMELIHARAAN_PENGEMBANGAN.md).
 
 ---
 
 ## H-001: Cloudinary Credentials Committed to `.env`
 
-**Issue:** API key dan secret Cloudinary terekspos dalam file `.env` yang ter-commit ke repository.
+**Status: CLOSED — 2026-09-28.** Integrasi Cloudinary dihapus penuh dari kode, dan kredensial lama sudah dihapus/diinvalidasi di sisi penyedia. Tidak ada tindakan lanjutan yang tersisa.
 
-**Cause:** File `.env` berisi credentials sensitif (line 66-68):
+> **Judul dipertahankan apa adanya** sebagai catatan sejarah audit 2026-09-11. Berkas `.env` sebenarnya **tidak pernah** masuk repository — lihat klarifikasi di bawah.
+
+**Issue:** Nilai API key dan secret Cloudinary pernah tertulis **apa adanya di dokumen ini dan di [QA-AUDIT-REPORT.md](./QA-AUDIT-REPORT.md)** — dua berkas yang **terlacak git**.
+
+**Klarifikasi penting (hasil verifikasi 2026-09-28):** berkas `.env` **tidak pernah masuk repository** — `git ls-files .env` tidak menemukan apa pun, dan `.gitignore` memuat `.env`. Jadi jalur paparan yang sebenarnya adalah **dokumentasi QA**, bukan `.env`. Ini tidak mengurangi tingkat keparahan: nilainya tetap masuk riwayat git lewat berkas dokumen.
+
+**Cause:** Nilai kredensial disalin ke dokumen audit saat pelaporan. Nilai aslinya **sudah di-redaksi** dari kedua dokumen ini; bentuk yang pernah ada:
+
+```env
+CLOUDINARY_CLOUD_NAME=<redacted>
+CLOUDINARY_API_KEY=<redacted>
+CLOUDINARY_API_SECRET=<redacted>
 ```
-CLOUDINARY_CLOUD_NAME=mediaflows_2f82a1be-b564-4a21-b7aa-25a2bbbd41fe
-CLOUDINARY_API_KEY=824718461724624
-CLOUDINARY_API_SECRET=q9QJvwn5W--WctGuRb7VB8ja1ck
-```
 
-**Impact:** 
-- Siapa pun dengan akses read ke repository dapat membaca dan menyalahgunakan Cloudinary account
-- Risiko resource abuse (upload file berbahaya, bandwidth drain)
-- Compliance violation (credential management best practice)
+**Impact (historis, 2026-09-11):** Siapa pun dengan akses baca ke repository dapat menyalahgunakan akun Cloudinary (resource abuse, bandwidth drain), dan melanggar praktik pengelolaan kredensial. **Dampak ini sudah tertutup** — lihat tindakan lanjutan di bawah.
 
-**Expected:** Credentials tidak boleh ter-commit ke version control. Harus ada di environment variable runtime atau secret manager.
+**Resolusi:**
 
-**Actual:** Credentials plaintext ada di `.env` yang ada di repository.
+1. Integrasi Cloudinary **dihapus sepenuhnya dari kode** (2026-09-11). Tidak ada lagi helper, perintah migrasi, maupun pemanggilan API. Media kini disimpan pada disk privat lokal — lihat [modules/media.md](../modules/media.md).
+2. `.gitignore` sudah memuat `.env`.
+3. Nilai asli di dokumen ini sudah diganti placeholder.
+4. `.env.example` hanya memuat placeholder kosong.
 
-**Recommended Fix:**
-1. **Segera rotasi** API key dan secret di Cloudinary Dashboard
-2. Hapus credential values dari `.env` committed:
-   ```env
-   CLOUDINARY_CLOUD_NAME=
-   CLOUDINARY_API_KEY=
-   CLOUDINARY_API_SECRET=
-   ```
-3. Tambahkan `.env` ke `.gitignore` (jika belum)
-4. Gunakan `.env.example` untuk template tanpa nilai:
-   ```env
-   CLOUDINARY_CLOUD_NAME=your_cloud_name_here
-   CLOUDINARY_API_KEY=your_api_key_here
-   CLOUDINARY_API_SECRET=your_api_secret_here
-   ```
-5. Jika Cloudinary tidak lagi aktif digunakan, pertimbangkan untuk menghapus config sepenuhnya
+**Tindakan lanjutan: tidak ada lagi (per 2026-09-28).**
 
-**Verification:**
-- Cek `.env` tidak lagi mengandung credential values
-- Cek `.gitignore` mencakup `.env`
-- Konfirmasi Cloudinary API key lama sudah tidak valid
-- Run `git log --all -p -- .env` untuk memastikan history juga di-audit
+- [x] **Selesai 2026-09-28** — kredensial Cloudinary lama **sudah dihapus/diinvalidasi** di dashboard penyedia. Salinan yang tersisa di riwayat git tidak lagi dapat dipakai.
+- [x] Audit riwayat: `git log --all -p -- .env docs/qa/HIGH-PRIORITY.md` untuk memastikan tidak ada salinan lain.
+- [x] **Selesai 2026-09-28** — blok `CLOUDINARY_*` di `.env.example` sudah **dihapus**, karena config tersebut tidak dipakai kode mana pun.
+
+> **Catatan `.env` lokal.** Tiga baris `CLOUDINARY_*` di `.env` lokal adalah config mati (tidak ada kode yang membacanya) dan **tidak pernah terlacak git**. Karena kredensialnya sudah diinvalidasi di penyedia, baris-baris itu aman untuk dihapus kapan saja — penghapusannya tidak lagi mendesak dan diserahkan ke pemilik sistem.
 
 ---
 
 ## H-002: DashboardController Tidak Menerapkan School Scope
 
-**Issue:** Dashboard statistics (`total_reports`, `submitted_reports`, `approved_reports`, `rejected_reports`) menghitung data dari **semua sekolah** tanpa memfilter berdasarkan school scope user yang sedang login.
+**Status: RESOLVED.**
 
-**Cause:** `DashboardController::index()` (file: `app/Http/Controllers/Admin/DashboardController.php` line 13-27) menggunakan query global:
+**Issue:** Statistik dashboard (`total_reports`, `submitted_reports`, `approved_reports`, `rejected_reports`) dihitung dari **semua sekolah** tanpa memfilter berdasarkan school scope pengguna yang login.
+
+**Resolusi terverifikasi** di `app/Http/Controllers/Admin/DashboardController.php`:
+
 ```php
-'total_reports'     => Report::count(),
-'submitted_reports' => Report::where('status', 'submitted')->count(),
-'approved_reports'  => Report::where('status', 'approved')->count(),
-'rejected_reports'  => Report::where('status', 'rejected')->count(),
-'total_schools'     => School::count(),
-'total_coaches'     => User::where('role', 'coach')->count(),
+// QA H-002: statistik dashboard wajib mengikuti school scope user.
+// Null berarti scope operasional-global (SuperAdmin/Relation/SPV).
+$schoolIds = $this->authorization->accessibleSchoolIds($user);
 ```
 
-Tidak ada `whereIn('school_id', $accessibleSchoolIds)` yang diterapkan.
+- `$reportQuery` dan `$schoolQuery` dibatasi `whereIn('school_id', $schoolIds)` / `whereIn('id', $schoolIds)` bila scope bukan `null`.
+- `pendingReports` ikut dibatasi dengan pola `when()` yang sama.
+- Pengguna yang bukan `User` ditolak 403 (`abort_unless`).
 
-**Impact:**
-- **Saat ini:** Risk rendah karena hanya `superadmin` dan `spv_coach` yang memiliki `dashboard.view` capability, dan keduanya memiliki global scope
-- **Potensial:** Jika di masa depan role lain (seperti PIC atau Teacher) diberi akses dashboard, mereka akan melihat statistik dari SEMUA sekolah
-- `pendingReports` query (line 23-27) juga tidak di-scope, sehingga bisa menampilkan report dari sekolah yang bukan scope user
+**Sisa yang perlu diperhatikan:** `total_coaches` **masih dihitung global** (`User::where('role','coach')->count()`). Saat ini dampaknya nihil karena hanya SuperAdmin, Relation, dan SPV Coach yang memiliki `dashboard.view`, dan ketiganya ber-scope global — tetapi bila kelak peran ber-scope sempit diberi akses dashboard, angka itu akan menyesatkan. Belum ada test yang menutup kasus ini.
 
-**Expected:** Dashboard statistics harus di-filter berdasarkan `AuthorizationService::accessibleSchoolIds()` sehingga setiap role hanya melihat data yang berada dalam scope-nya.
-
-**Actual:** Semua query mengembalikan data global tanpa filtering.
-
-**Recommended Fix:**
-```php
-public function index()
-{
-    $user = auth()->user();
-    $schoolIds = app(AuthorizationService::class)->accessibleSchoolIds($user);
-    
-    $baseQuery = Report::query();
-    $schoolQuery = School::query();
-    
-    if ($schoolIds !== null) {
-        $baseQuery->whereIn('school_id', $schoolIds);
-        $schoolQuery->whereIn('id', $schoolIds);
-    }
-    
-    $stats = [
-        'total_reports'     => (clone $baseQuery)->count(),
-        'submitted_reports' => (clone $baseQuery)->where('status', 'submitted')->count(),
-        'approved_reports'  => (clone $baseQuery)->where('status', 'approved')->count(),
-        'rejected_reports'  => (clone $baseQuery)->where('status', 'rejected')->count(),
-        'total_schools'     => $schoolQuery->count(),
-        'total_coaches'     => User::where('role', 'coach')->count(),
-    ];
-
-    $pendingReports = Report::with(['coach', 'school', 'schoolClass'])
-        ->where('status', 'submitted')
-        ->when($schoolIds !== null, fn($q) => $q->whereIn('school_id', $schoolIds))
-        ->latest()
-        ->take(5)
-        ->get();
-
-    return view('admin.dashboard', compact('stats', 'pendingReports'));
-}
-```
-
-**Verification:**
-- Login sebagai user dengan school scope terbatas
-- Verifikasi dashboard hanya menampilkan data dari sekolah yang di-plot
-- Run `php artisan test` untuk regresi
-- Tambahkan unit test baru untuk memverifikasi scope dashboard
+**Verifikasi yang disarankan:** tambahkan test dashboard ber-scope agar perilaku ini tidak diam-diam rusak saat peran baru diberi `dashboard.view`.
 
 ---
 
-*File ini adalah subset dari [QA-AUDIT-REPORT.md](./QA-AUDIT-REPORT.md) — hanya berisi issue dengan severity HIGH.*
+## Ringkasan
+
+| ID | Judul | Severity | Status |
+|---|---|---|---|
+| H-001 | Cloudinary credentials committed | HIGH | **CLOSED (2026-09-28)** — integrasi dihapus; kredensial lama sudah dihapus/diinvalidasi di penyedia |
+| H-002 | Dashboard tanpa school scope | HIGH | **RESOLVED** — sisa: `total_coaches` masih global |

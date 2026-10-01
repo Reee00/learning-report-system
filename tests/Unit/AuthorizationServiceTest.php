@@ -59,14 +59,19 @@ class AuthorizationServiceTest extends TestCase
         $this->assertFalse($service->allows($user, 'reports.review'));
     }
 
-    public function test_finance_can_export_csv_but_cannot_manage_master_data(): void
+    public function test_finance_can_export_attendance_but_cannot_manage_master_data(): void
     {
         $service = new AuthorizationService();
         $user = new User(['role' => User::ROLE_FINANCE]);
 
         $this->assertTrue($service->allows($user, 'attendance.view'));
-        $this->assertTrue($service->allows($user, 'attendance.export_csv'));
+        // Review meeting LRS 2026-10-01: export Finance tidak lagi dibatasi
+        // CSV — Excel dan PDF sama-sama dipakai untuk pelaporan. Karena itu
+        // Finance memakai capability export penuh, bukan `export_csv`.
+        $this->assertTrue($service->allows($user, 'attendance.export'));
         $this->assertFalse($service->allows($user, 'schools.create'));
+        $this->assertFalse($service->allows($user, 'reports.review'));
+        $this->assertFalse($service->allows($user, 'coaches.view'));
     }
 
     /**

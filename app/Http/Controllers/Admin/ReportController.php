@@ -21,6 +21,88 @@ class ReportController extends Controller
     ) {
     }
 
+    /**
+     * REVIEW — antrean kerja reviewer, dipisah dari ARSIP.
+     *
+     * Dua konsep, satu tabel `reports`:
+     * - REVIEW (halaman ini) menjawab "apa yang harus saya kerjakan sekarang":
+     *   laporan `submitted` yang menunggu keputusan, dan laporan `rejected`
+     *   yang menunggu koreksi coach. Di sini tombol Setujui/Tolak muncul.
+     * - ARSIP (index()) menjawab "apa yang sudah terjadi": riwayat lengkap
+     *   baca-saja, dikelompokkan Sekolah → Kelas.
+     *
+     * Tidak ada tabel arsip kedua dan tidak ada baris yang disalin — keduanya
+     * query ke `reports` yang sama dengan scope sekolah yang sama.
+     */
+    public function review(Request $request)
+    {
+        $user = $this->actingUser();
+        abort_unless($this->authorization->allows($user, 'reports.review'), 403, 'Permission tidak mencukupi.');
+
+        $query = Report::with(['coach', 'school', 'schoolClass'])
+            ->whereIn('status', ['submitted', 'rejected'])
+            ->latest();
+
+        // Scope sekolah diterapkan lebih dulu; filter dari request hanya bisa
+        // mempersempit, tidak pernah melewatinya.
+        $accessibleSchoolIds = $this->authorization->accessibleSchoolIds($user);
+        if ($accessibleSchoolIds !== null) {
+            $query->whereIn('school_id', $accessibleSchoolIds);
+        }
+
+        if ($request->filled('school_id')) {
+            $query->where('school_id', $request->school_id);
+        }
+        if ($request->filled('class_id')) {
+            $query->where('class_id', $request->class_id);
+        }
+        if ($request->filled('coach_id')) {
+            $query->where('coach_id', $request->coach_id);
+        }
+        if ($request->filled('status') && in_array($request->status, ['submitted', 'rejected'], true)) {
+            $query->where('status', $request->status);
+        }
+
+        $reports = $query->paginate(20)->withQueryString();
+
+        // Hitungan antrean dihitung dari query ter-scope yang sama, sebelum
+        // filter status, supaya reviewer tahu beban kerjanya walau sedang
+        // menyaring satu status saja.
+        $countsQuery = Report::query()->whereIn('status', ['submitted', 'rejected']);
+        if ($accessibleSchoolIds !== null) {
+            $countsQuery->whereIn('school_id', $accessibleSchoolIds);
+        }
+        if ($request->filled('school_id')) {
+            $countsQuery->where('school_id', $request->school_id);
+        }
+
+        $pendingCount = (clone $countsQuery)->where('status', 'submitted')->count();
+        $rejectedCount = (clone $countsQuery)->where('status', 'rejected')->count();
+
+        $schoolsQuery = School::orderBy('name');
+        if ($accessibleSchoolIds !== null) {
+            $schoolsQuery->whereIn('id', $accessibleSchoolIds);
+        }
+        $schools = $schoolsQuery->get();
+
+        $classesQuery = SchoolClass::orderBy('name')->with('school');
+        if ($accessibleSchoolIds !== null) {
+            $classesQuery->whereIn('school_id', $accessibleSchoolIds);
+        }
+        $classes = $classesQuery->get();
+
+        $coachesQuery = User::where('role', User::ROLE_COACH)->orderBy('name');
+        if ($accessibleSchoolIds !== null) {
+            $coachesQuery->whereHas('reports', fn ($q) => $q->whereIn('school_id', $accessibleSchoolIds));
+        }
+        $coaches = $coachesQuery->get();
+
+        return view('admin.reports.review', compact(
+            'reports', 'schools', 'classes', 'coaches',
+            'pendingCount', 'rejectedCount'
+        ));
+    }
+
     public function index(Request $request)
     {
         $user = $this->actingUser();
@@ -255,14 +337,27 @@ class ReportController extends Controller
      *
      * Security checks (in order):
      * 1. Permission middleware enforces reports.download capability.
-     * 2. School scope is checked via ensureSchoolAccess().
+     * 2. Object scope: role coach memakai aturan akses LAPORAN
+     *    (AuthorizationService::canAccessReport — per SESI), role lain memakai
+     *    scope sekolah via ensureSchoolAccess(). Role coach TIDAK boleh
+     *    memakai ensureSchoolAccess() karena accessibleSchoolIds() bernilai
+     *    null (global) untuk coach, sehingga scope sekolah akan meloloskannya
+     *    ke seluruh sekolah. Aturan ini sama persis dengan yang dipakai
+     *    Coach\ReportController, jadi tidak ada dua versi aturan.
      * 3. Report status must be approved — no other status is downloadable.
-     * 4. Coach role: further restricted to own reports only (handled via
-     *    the dedicated Coach\ReportController::download instead).
      */
     public function download(Report $report)
     {
-        $this->ensureSchoolAccess($report);
+        if ($this->actingUser()->role === User::ROLE_COACH) {
+            abort_unless(
+                $this->authorization->canAccessReport($this->actingUser(), $report),
+                403,
+                'Anda tidak memiliki akses ke laporan ini.'
+            );
+        } else {
+            $this->ensureSchoolAccess($report);
+        }
+
         abort_unless($report->status === 'approved', 403, 'Hanya laporan yang sudah disetujui dapat diunduh.');
 
         $report->load(['coach', 'school', 'schoolClass', 'attendances.student', 'media', 'attendanceMedia']);
@@ -274,9 +369,14 @@ class ReportController extends Controller
             . $report->report_date->format('Y-m-d')
             . '.html';
 
-        // Konteks tombol "Kembali": PIC kembali ke dashboard PIC, role lain
-        // ke daftar laporan admin (coach memakai controller sendiri).
-        $backTo = $this->actingUser()->role === User::ROLE_SCHOOL_PIC ? 'pic' : 'admin';
+        // Konteks tombol "Kembali" dan tautan "Lihat Video" pada halaman
+        // unduhan: PIC kembali ke dashboard PIC, coach ke daftar laporannya
+        // sendiri, role lain ke daftar laporan admin.
+        $backTo = match ($this->actingUser()->role) {
+            User::ROLE_SCHOOL_PIC => 'pic',
+            User::ROLE_COACH      => 'coach',
+            default               => 'admin',
+        };
 
         return response()
             ->view('admin.reports.download', compact('report', 'backTo'))

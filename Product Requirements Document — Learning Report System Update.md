@@ -1,5 +1,18 @@
 # PRODUCT REQUIREMENTS DOCUMENT (PRD)
 
+> ## ⚠️ DOKUMEN HISTORIS — jangan dipakai sebagai deskripsi kondisi saat ini
+>
+> **Ditandai historis: 2026-09-28.** Dokumen ini adalah *baseline* perencanaan tertanggal **14 Agustus 2026**. Isinya menggambarkan rencana dan kondisi teknis pada saat itu, bukan sistem yang berjalan sekarang.
+>
+> Referensi yang **sudah tidak berlaku** di dalam dokumen ini:
+> - **Cloudinary** — dihapus penuh dari kode pada 2026-09-11. Media report kini disimpan pada disk privat lokal melalui `MediaStorageService`. Lihat [docs/modules/media.md](docs/modules/media.md).
+> - **PHP 8.2/8.3** — requirement saat ini `^8.4`.
+> - **Docker** — `Dockerfile` dihapus 2026-09-11; deployment berjalan di server PHP biasa.
+>
+> Fitur yang belum ada saat dokumen ini ditulis dan kini sudah terpasang: PWA + service worker, Web Push (VAPID), queue worker, activity log, School Workspace, dan pola jadwal berulang.
+>
+> Untuk kondisi terkini, mulai dari [docs/README.md](docs/README.md) dan [contextproject.md](contextproject.md).
+
 ## Learning Report System — Role, Master Data, Attendance & Notification Update
 
 **Project:** Learning Report System

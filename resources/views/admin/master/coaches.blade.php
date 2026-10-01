@@ -7,52 +7,53 @@
     $authorization = app(\App\Services\AuthorizationService::class);
     $canCreateCoach = $currentUser && $authorization->allows($currentUser, 'coaches.create');
     $canUpdateCoach = $currentUser && $authorization->allows($currentUser, 'coaches.update');
+    // Nomor WhatsApp coach = data kontak pribadi. Controller sudah membuang
+    // nilainya di sisi server untuk role tanpa izin ini; flag di sini hanya
+    // mengatur apakah kolomnya perlu dirender sama sekali.
+    $canViewCoachContact = $currentUser && $authorization->allows($currentUser, 'coaches.contact');
+    $columnCount = $canViewCoachContact ? 5 : 4;
 @endphp
 
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-person-video3 text-primary me-2"></i> Master Data Coach</h4>
-            <p class="text-muted small mb-0">Kelola daftar coach dan penugasan kelas mereka.</p>
-        </div>
+    <x-page-header
+        title="Master Data Coach"
+        description="Kelola daftar coach dan penugasan kelas mereka."
+        :breadcrumbs="[
+            ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+            ['label' => 'Coach'],
+        ]"
+    >
         @if($canCreateCoach)
-            <button class="btn btn-primary shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addCoachModal">
-                <i class="bi bi-person-plus-fill"></i> Tambah Coach
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCoachModal">
+                <i class="bi bi-person-plus" aria-hidden="true"></i> Tambah Coach
             </button>
         @endif
-    </div>
+    </x-page-header>
 
-    <div class="card shadow-sm border-0 mb-3 bg-light">
-        <div class="card-body p-3">
-            <form action="{{ route('admin.coaches.index') }}" method="GET" class="mb-0">
-                <div class="input-group">
-                    <span class="input-group-text bg-white border-end-0 text-muted">
-                        <i class="bi bi-search"></i>
-                    </span>
-                    <input type="text" name="search" class="form-control border-start-0 ps-0" placeholder="Cari nama coach atau email..." value="{{ request('search') }}">
-                    @if(request('search'))
-                        <a href="{{ route('admin.coaches.index') }}" class="btn btn-outline-secondary" title="Reset Search">
-                            <i class="bi bi-x-lg"></i>
-                        </a>
-                    @endif
-                    <button type="submit" class="btn btn-primary px-4 fw-medium">Search</button>
-                </div>
-            </form>
+    <x-filter-bar
+        :action="route('admin.coaches.index')"
+        title="Cari coach"
+        :reset="route('admin.coaches.index')"
+    >
+        <div class="col-md-6">
+            <label class="form-label visually-hidden" for="coachSearch">Nama atau email coach</label>
+            <div class="input-group">
+                <span class="input-group-text bg-white border-end-0 text-muted">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                </span>
+                <input
+                    type="search"
+                    id="coachSearch"
+                    name="search"
+                    class="form-control border-start-0 ps-0"
+                    placeholder="Cari nama coach atau email..."
+                    value="{{ request('search') }}"
+                >
+                <button type="submit" class="btn btn-primary px-4">Cari</button>
+            </div>
         </div>
-    </div>
+    </x-filter-bar>
 
-    @if (session('success'))
-        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-    @if (session('error'))
-        <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
     @if ($errors->any())
         <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
             <div class="d-flex align-items-center mb-2">
@@ -75,6 +76,9 @@
                     <tr>
                         <th class="text-secondary fw-semibold text-center" style="width: 50px;">#</th>
                         <th class="text-secondary fw-semibold">Coach</th>
+                        @if($canViewCoachContact)
+                            <th class="text-secondary fw-semibold">Nomor WhatsApp</th>
+                        @endif
                         <th class="text-secondary fw-semibold">Kelas yang Di-assign</th>
                         <th class="text-center text-secondary fw-semibold" style="width: 250px;">Aksi</th>
                     </tr>
@@ -94,6 +98,11 @@
                                 </div>
                             </div>
                         </td>
+                        @if($canViewCoachContact)
+                            <td>
+                                @include('partials.whatsapp-link', ['person' => $coach])
+                            </td>
+                        @endif
                         <td>
                             @if($coach->coachClasses->isEmpty())
                                 <span class="text-muted small fst-italic">Belum ada assignment</span>
@@ -109,7 +118,7 @@
                         </td>
                         <td>
                             <div class="d-flex justify-content-center gap-2">
-                                <a href="{{ route('admin.coaches.show', $coach) }}" class="btn btn-sm btn-light border text-primary rounded-pill px-3" title="Kelola Assignment">
+                                <a href="{{ ctx_route('admin.coaches.show', $coach) }}" class="btn btn-sm btn-light border text-primary rounded-pill px-3" title="Kelola Assignment">
                                     <i class="bi bi-clipboard2-check me-1"></i> Assignment
                                 </a>
                                 @if($canUpdateCoach)
@@ -127,6 +136,8 @@
                                     <form method="POST" action="{{ route('admin.coaches.update', $coach) }}">
                                         @csrf
                                         @method('PUT')
+                                        <input type="hidden" name="_modal" value="edit">
+                                        <input type="hidden" name="_modal_id" value="{{ $coach->id }}">
                                         <div class="modal-header bg-light border-bottom-0">
                                             <h5 class="modal-title fw-bold text-dark"><i class="bi bi-pencil-square text-primary me-2"></i> Edit Coach</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -152,8 +163,8 @@
                     @endif
                 @empty
                     <tr>
-                        <td colspan="4" class="text-center py-5">
-                            <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" alt="No Data" width="64" class="opacity-50 mb-3">
+                        <td colspan="{{ $columnCount }}" class="text-center py-5">
+                            <i class="bi bi-people text-muted opacity-50 mb-3 d-block lh-1" style="font-size: 4rem;" aria-hidden="true"></i>
                             <h6 class="text-muted mb-0">Belum ada Coach terdaftar.</h6>
                         </td>
                     </tr>
@@ -175,6 +186,7 @@
         <div class="modal-content border-0 shadow">
             <form method="POST" action="{{ route('admin.coaches.store') }}">
                 @csrf
+                <input type="hidden" name="_modal" value="add">
                 <div class="modal-header bg-primary text-white border-bottom-0">
                     <h5 class="modal-title fw-bold"><i class="bi bi-person-plus-fill me-2"></i> Tambah Coach Baru</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -208,4 +220,9 @@
     </div>
 </div>
 @endif
+
+@section('scripts')
+    @include('partials.modal-reopen', ['modalId' => 'addCoachModal', 'when' => old('_modal') === 'add'])
+    @include('partials.modal-reopen', ['modalId' => 'editCoachModal'.old('_modal_id'), 'when' => old('_modal') === 'edit'])
+@endsection
 @endsection

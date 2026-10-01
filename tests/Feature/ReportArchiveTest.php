@@ -354,4 +354,133 @@ class ReportArchiveTest extends TestCase
             ->assertSee('SD Arsip A')
             ->assertSee('SD Arsip B');
     }
+
+    // ===== 6. REVIEW vs ARSIP (aturan final 2026-09-28) =====
+
+    public function test_review_queue_lists_only_reports_awaiting_action(): void
+    {
+        $this->report($this->coachA, $this->schoolA, $this->classA1, '2026-02-02', 'approved');
+        $this->report($this->coachA, $this->schoolA, $this->classA1, '2026-02-03', 'submitted');
+        $this->report($this->coachA, $this->schoolA, $this->classA1, '2026-02-04', 'rejected');
+
+        $response = $this->actingAs($this->relation)
+            ->get(route('admin.reports.review'))
+            ->assertOk();
+
+        $response->assertSee('Review Laporan');
+        $response->assertSee('Antrean Review');
+
+        // Antrean = menunggu keputusan + menunggu koreksi coach.
+        $response->assertSee('03 Feb 2026');
+        $response->assertSee('04 Feb 2026');
+
+        // Yang sudah disetujui bukan pekerjaan reviewer — ada di arsip.
+        $response->assertDontSee('02 Feb 2026');
+    }
+
+    public function test_archive_keeps_the_full_history_while_review_holds_only_the_queue(): void
+    {
+        $this->report($this->coachA, $this->schoolA, $this->classA1, '2026-02-02', 'approved');
+        $this->report($this->coachA, $this->schoolA, $this->classA1, '2026-02-03', 'submitted');
+
+        // Arsip memuat SEMUA status, termasuk yang sudah selesai.
+        $this->actingAs($this->relation)
+            ->get(route('admin.reports.index'))
+            ->assertOk()
+            ->assertSee('02 Feb 2026')
+            ->assertSee('03 Feb 2026');
+
+        // Review hanya memuat antrean.
+        $this->actingAs($this->relation)
+            ->get(route('admin.reports.review'))
+            ->assertOk()
+            ->assertSee('03 Feb 2026')
+            ->assertDontSee('02 Feb 2026');
+
+        // Dua halaman, satu tabel: membuka keduanya tidak menggandakan baris.
+        $this->assertSame(2, Report::count());
+    }
+
+    public function test_archive_page_exposes_no_review_actions(): void
+    {
+        $submitted = $this->report($this->coachA, $this->schoolA, $this->classA1, '2026-02-03', 'submitted');
+
+        // Arsip baca-saja: tidak ada form setujui/tolak di halaman riwayat.
+        $this->actingAs($this->relation)
+            ->get(route('admin.reports.index'))
+            ->assertOk()
+            ->assertDontSee(route('admin.reports.approve', $submitted), false)
+            ->assertDontSee(route('admin.reports.reject', $submitted), false);
+
+        // Aksi review ada di halaman antreannya.
+        $this->actingAs($this->relation)
+            ->get(route('admin.reports.review'))
+            ->assertOk()
+            ->assertSee(route('admin.reports.approve', $submitted), false)
+            ->assertSee(route('admin.reports.reject', $submitted), false);
+    }
+
+    public function test_reviewer_can_decide_straight_from_the_queue(): void
+    {
+        $submitted = $this->report($this->coachA, $this->schoolA, $this->classA1, '2026-02-03', 'submitted');
+
+        $this->actingAs($this->relation)
+            ->patch(route('admin.reports.approve', $submitted))
+            ->assertRedirect();
+
+        $this->assertSame('approved', $submitted->refresh()->status);
+
+        // Sudah selesai → keluar dari antrean, tetap ada di arsip.
+        $this->actingAs($this->relation)
+            ->get(route('admin.reports.review'))
+            ->assertOk()
+            ->assertDontSee('03 Feb 2026');
+
+        $this->actingAs($this->relation)
+            ->get(route('admin.reports.index'))
+            ->assertOk()
+            ->assertSee('03 Feb 2026');
+    }
+
+    public function test_review_queue_is_restricted_to_reviewers(): void
+    {
+        $this->report($this->coachA, $this->schoolA, $this->classA1, '2026-02-03', 'submitted');
+
+        // PIC tetap boleh membuka arsip sekolahnya, tetapi antrean review
+        // adalah wewenang reviewer (Relation/SuperAdmin).
+        $this->actingAs($this->picA)
+            ->get(route('admin.reports.index'))
+            ->assertOk();
+
+        $this->actingAs($this->picA)
+            ->get(route('admin.reports.review'))
+            ->assertForbidden();
+
+        $this->actingAs($this->coach)
+            ->get(route('admin.reports.review'))
+            ->assertForbidden();
+
+        $this->actingAs($this->superadmin)
+            ->get(route('admin.reports.review'))
+            ->assertOk();
+    }
+
+    public function test_review_queue_filters_stay_inside_school_scope(): void
+    {
+        $this->report($this->coachA, $this->schoolA, $this->classA1, '2026-02-03', 'submitted');
+        $this->report($this->coachB, $this->schoolB, $this->classB1, '2026-02-09', 'submitted');
+
+        $this->actingAs($this->relation)
+            ->get(route('admin.reports.review', ['school_id' => $this->schoolA->id]))
+            ->assertOk()
+            ->assertSee('03 Feb 2026')
+            ->assertDontSee('09 Feb 2026');
+
+        // Filter status mempersempit antrean, tidak melebarkannya.
+        $this->actingAs($this->relation)
+            ->get(route('admin.reports.review', ['status' => 'rejected']))
+            ->assertOk()
+            ->assertDontSee('03 Feb 2026')
+            ->assertDontSee('09 Feb 2026');
+    }
 }

@@ -40,4 +40,18 @@ class ReportMedia extends Model
     {
         return route('media.serve', ['media' => $this->id]);
     }
+
+    /**
+     * URL unduh media: route yang SAMA dengan url(), hanya dengan penanda
+     * `download` yang membuat MediaController mengirim Content-Disposition
+     * attachment alih-alih inline.
+     *
+     * Sengaja tidak ada route kedua supaya otorisasi media tetap satu pintu:
+     * file privat tidak pernah menjadi publik, dan siapa pun yang tidak boleh
+     * MELIHAT media juga tidak boleh mengunduhnya.
+     */
+    public function downloadUrl()
+    {
+        return route('media.serve', ['media' => $this->id, 'download' => 1]);
+    }
 }

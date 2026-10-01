@@ -5,6 +5,14 @@
 **Date:** 2026-08-14\
 **Project:** Learning Report System
 
+> ## Catatan Sinkronisasi Dokumentasi (2026-09-28)
+>
+> Dokumen ini adalah **rencana implementasi historis** tertanggal 2026-08-14. Ia merekam niat dan urutan kerja pada saat itu, bukan struktur dokumentasi yang berlaku sekarang.
+>
+> Pada 2026-09-28 seluruh dokumentasi disinkronkan dengan kode. Sepuluh berkas di `docs/audit/`, `docs/stabilization/`, dan `docs/implementation/` hanya berisi pointer tanpa substansi dan telah dikonsolidasikan ke [docs/historical/README.md](docs/historical/README.md). Path pada blok deliverable di bawah sudah diarahkan ke dokumen yang berlaku sekarang; struktur lengkapnya ada di [docs/README.md](docs/README.md).
+>
+> Jangan membuat berkas baru pada path `docs/audit/*`, `docs/stabilization/*`, atau `docs/implementation/*` — folder tersebut sudah tidak dipakai.
+
 ## 1. Purpose
 
 Dokumen ini menerjemahkan PRD Learning Report System Update v2 menjadi
@@ -45,6 +53,8 @@ Project menggunakan:
 -   Docker
 -   PHPUnit
 -   MVC Laravel
+
+> **Koreksi 2026-09-28 — daftar ini adalah rencana awal, bukan kondisi saat ini.** Yang sudah tidak berlaku: **PHP** kini `^8.4` (bukan 8.2/8.3); **Cloudinary** dihapus penuh dari kode dan digantikan penyimpanan lokal privat; **Docker** dihapus — deployment berjalan di server PHP biasa. Yang belum tercantum di daftar ini tetapi sekarang bagian dari sistem: PWA + service worker, Web Push (VAPID), queue worker, dan OpenSpout. Lihat [docs/README.md](docs/README.md) untuk kondisi terkini.
 
 Struktur utama yang wajib diaudit:
 
@@ -273,7 +283,7 @@ Agent harus menjawab:
 Agent harus membuat:
 
 ``` text
-docs/audit/existing-system-audit.md
+docs/01_ARSITEKTUR_SISTEM.md
 ```
 
 Isi minimal:
@@ -301,9 +311,9 @@ Recommended Extension Points
 Setelah audit, buat mapping:
 
 ``` text
-docs/audit/data-model-map.md
-docs/audit/role-permission-map.md
-docs/audit/route-map.md
+docs/02_DATABASE_DOKUMENTASI.md
+docs/reference/permissions.md
+docs/04_API_DOKUMENTASI.md
 ```
 
 ## Data Mapping
@@ -497,6 +507,8 @@ dengan school scope.
 attendance.view
 attendance.export_csv
 ```
+
+> **Digantikan 2026-10-01.** Review meeting LRS menetapkan Finance memerlukan CSV, Excel, dan PDF untuk pelaporan kehadiran lintas sekolah, sehingga capability yang berlaku sekarang adalah `attendance.view` + `attendance.export`. `attendance.export_csv` (CSV saja) tidak lagi dipegang role mana pun. Yang berlaku ada di [docs/reference/permissions.md](docs/reference/permissions.md) dan [docs/modules/attendance.md](docs/modules/attendance.md); blok di atas dipertahankan sebagai catatan rencana 2026-08-14.
 
 ------------------------------------------------------------------------
 
@@ -1193,12 +1205,12 @@ architecture or requirement.
 Agent should produce/update:
 
 ``` text
-docs/audit/existing-system-audit.md
-docs/audit/data-model-map.md
-docs/audit/role-permission-map.md
-docs/audit/route-map.md
-docs/implementation/implementation-notes.md
-docs/implementation/test-results.md
+docs/01_ARSITEKTUR_SISTEM.md
+docs/02_DATABASE_DOKUMENTASI.md
+docs/reference/permissions.md
+docs/04_API_DOKUMENTASI.md
+docs/historical/README.md
+docs/11_PENGUJIAN_DAN_TROUBLESHOOTING.md
 ```
 
 If the project already has a documentation convention, follow it

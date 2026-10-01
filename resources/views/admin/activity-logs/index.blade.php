@@ -3,15 +3,20 @@
 
 @section('content')
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-clipboard-data text-primary me-2"></i> Activity Log</h4>
-            <p class="text-muted small mb-0">Aktivitas semua role — retensi 7 hari, dihapus otomatis setiap malam.</p>
-        </div>
-        <a href="{{ route('admin.dashboard') }}" class="btn btn-light border d-flex align-items-center gap-2">
-            <i class="bi bi-arrow-left"></i> Kembali
-        </a>
-    </div>
+    <x-page-header
+        title="Activity Log"
+        description="Aktivitas semua role — retensi 7 hari, dihapus otomatis setiap malam."
+        :breadcrumbs="[
+            ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+            ['label' => 'Activity Log'],
+        ]"
+    >
+        <x-slot:meta>
+            <a href="{{ route('admin.dashboard') }}" class="small text-decoration-none">
+                <i class="bi bi-arrow-left me-1" aria-hidden="true"></i> Kembali ke Dashboard
+            </a>
+        </x-slot:meta>
+    </x-page-header>
 
     {{-- Filter --}}
     <div class="card mb-4 shadow-sm border-0">

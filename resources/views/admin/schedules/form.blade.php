@@ -1,17 +1,27 @@
 @extends('layouts.app')
-@section('title', $schedule->exists ? 'Edit Jadwal Mengajar' : 'Tambah Jadwal Mengajar')
+@section('title', $schedule->exists ? 'Edit Jadwal Mengajar' : 'Tambah Pertemuan')
 
 @section('content')
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h4 class="mb-1 fw-bold">
-                <i class="bi bi-calendar-plus text-primary me-2"></i>
-                {{ $schedule->exists ? 'Edit Jadwal Mengajar' : 'Tambah Jadwal Mengajar' }}
-            </h4>
-            <p class="text-muted small mb-0">Isi detail sesi mengajar — sekolah, kelas, program, coach, dan jam sesi.</p>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Jadwal Mengajar', 'url' => route('admin.schedules.index')],
+                ['label' => $schedule->exists ? 'Edit Pertemuan' : 'Tambah Pertemuan'],
+            ]" />
+<h1 class="page-title">{{ $schedule->exists ? 'Edit '.$schedule->meetingLabel() : 'Tambah Pertemuan' }}</h1>
+            <p class="text-muted small mb-0">
+                @if($schedule->exists)
+                    Nomor pertemuan tidak berubah walau tanggalnya dipindah — pindah tanggal cukup lewat kolom
+                    "Pindah Tanggal" di daftar sesi.
+                @else
+                    Isi detail pertemuan — sekolah, kelas, program, coach, jam, dan tanggalnya. Tanggal boleh
+                    dikosongkan dulu bila belum ditetapkan.
+                @endif
+            </p>
         </div>
-        <a href="{{ route('admin.schedules.index') }}" class="btn btn-light border d-flex align-items-center gap-2">
+        <a href="{{ route('admin.schedules.index', ['view' => 'sesi']) }}" class="btn btn-light border d-flex align-items-center gap-2">
             <i class="bi bi-arrow-left"></i> Kembali
         </a>
     </div>
@@ -35,10 +45,34 @@
         @endif
         <div class="card-body p-4">
             <div class="row g-3">
+                {{-- Tanggal TIDAK wajib: pertemuan boleh masuk rencana dulu
+                     (mis. "Pertemuan 7") dan tanggalnya ditetapkan belakangan.
+                     Tanggal diisi manual — tidak harus berjarak 7 hari. --}}
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Tanggal <span class="text-danger">*</span></label>
-                    <input type="date" name="session_date" class="form-control" required
+                    <label class="form-label fw-semibold">Tanggal Pertemuan</label>
+                    <input type="date" name="session_date" class="form-control"
                            value="{{ old('session_date', $schedule->session_date?->format('Y-m-d')) }}">
+                    <div class="form-text">
+                        Boleh dikosongkan = "Belum dijadwalkan". Tanggal bebas, tidak harus mingguan.
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Status Pertemuan</label>
+                    <select name="status" class="form-select">
+                        @foreach(\App\Models\TeachingSchedule::STATUS_LABELS as $statusValue => $statusLabel)
+                            <option value="{{ $statusValue }}"
+                                {{ old('status', $schedule->status ?? \App\Models\TeachingSchedule::STATUS_SCHEDULED) === $statusValue ? 'selected' : '' }}>
+                                {{ $statusLabel }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">
+                        @if($schedule->exists)
+                            Status "Inactive" diatur lewat tombol aktif/nonaktif di daftar sesi.
+                        @else
+                            Terlaksana / Ditunda / Dibatalkan bisa diubah kapan saja.
+                        @endif
+                    </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Sekolah <span class="text-danger">*</span></label>
@@ -205,9 +239,9 @@
             </div>
         </div>
         <div class="card-footer bg-white py-3 d-flex justify-content-end gap-2 border-top-0">
-            <a href="{{ route('admin.schedules.index') }}" class="btn btn-light border">Batal</a>
+            <a href="{{ route('admin.schedules.index', ['view' => 'sesi']) }}" class="btn btn-light border">Batal</a>
             <button type="submit" class="btn btn-primary px-4">
-                <i class="bi bi-check-lg me-1"></i> {{ $schedule->exists ? 'Simpan Perubahan' : 'Simpan Jadwal' }}
+                <i class="bi bi-check-lg me-1"></i> {{ $schedule->exists ? 'Simpan Perubahan' : 'Simpan Pertemuan' }}
             </button>
         </div>
     </form>

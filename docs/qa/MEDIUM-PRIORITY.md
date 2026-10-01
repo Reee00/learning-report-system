@@ -1,10 +1,33 @@
 # MEDIUM PRIORITY ISSUES — LRS QA Audit
 
-Semua issue di bawah ini bersifat MEDIUM priority dan sebaiknya ditangani dalam sprint berikutnya.
+**Status diperbarui: 2026-10-01.** Dokumen ini adalah subset dari [QA-AUDIT-REPORT.md](./QA-AUDIT-REPORT.md) — hanya berisi isu dengan severity MEDIUM.
+
+> Isu dan analisis di bawah dipertahankan sebagai catatan audit 2026-09-11. Setiap isu kini punya baris **Status** yang mencerminkan kondisi kode saat ini.
+
+| ID | Judul | Status |
+|---|---|---|
+| M-001 | Finance melihat tombol PDF | **SUPERSEDED** (2026-10-01) |
+| M-002 | Seeder tanpa Teacher School | **RESOLVED** |
+| M-003 | Export memuat seluruh dataset | **RESOLVED** |
+| M-004 | Kolom `photo_path` legacy | **RESOLVED** |
+| M-005 | Tanpa unique constraint kehadiran | **RESOLVED** |
+| M-006 | Tanpa re-validasi class assignment | **RESOLVED** |
+
+Tidak ada isu MEDIUM yang masih terbuka. M-001 bukan lagi isu terbuka, melainkan aturan yang **digantikan** requirement baru.
 
 ---
 
 ## M-001: Finance Melihat Tombol PDF Export Padahal Hanya Memiliki CSV Capability
+
+**Status: SUPERSEDED (2026-10-01).**
+
+**Perbaikan terverifikasi (masih berlaku):**
+- `resources/views/attendance/class.blade.php` memisahkan `$canExportPdf` (hanya `attendance.export`) dari `$canExportCsv` (`export` **atau** `export_csv`). Tombol Excel dan PDF dibungkus `@if($canExportPdf)`; tombol CSV dibungkus `@if($canExportCsv)`.
+- `AttendanceController::export()` menegakkan permission per format: `format=excel|xlsx` dan `format=pdf` menolak 403 tanpa `attendance.export`. Format CSV tetap menerima salah satu capability.
+
+**Catatan:** Perilaku yang berlaku kini adalah **PDF dan Excel setara** — keduanya butuh `attendance.export`. Tombol pada view memang bernama "Unduh Excel", bukan "Unduh PDF" seperti pada judul isu asli.
+
+**Yang digantikan (2026-10-01):** premis isu ini — bahwa Finance hanya boleh CSV — tidak lagi berlaku. Review meeting LRS 2026-10-01 menetapkan Finance memerlukan **CSV, Excel, dan PDF** untuk pelaporan kehadiran lintas sekolah, jadi Finance kini memegang `attendance.export` (capability penuh) dan ketiga tombol dirender untuknya. Pengaman teknisnya tidak dilepas: pemisahan tombol dan penegakan per format di controller tetap ada, sehingga role yang hanya memegang `attendance.export_csv` masih ditolak 403 untuk Excel/PDF. Capability sempit itu kini tidak dipegang role mana pun. Lihat [modules/attendance.md](../modules/attendance.md).
 
 **Issue:** Finance role menampilkan tombol "Unduh PDF" dan "Unduh CSV" keduanya, padahal Finance hanya memiliki capability `attendance.export_csv` (bukan `attendance.export`).
 
@@ -63,6 +86,10 @@ Semua issue di bawah ini bersifat MEDIUM priority dan sebaiknya ditangani dalam 
 
 ## M-002: DatabaseSeeder Tidak Menyertakan Teacher School Role
 
+**Status: RESOLVED.**
+
+**Perbaikan terverifikasi:** seeder kini membuat akun `teacher@lrs.com` (Dewi Larasati) dengan role `teacher_school` beserta plot sekolahnya. Seeder juga membuat 10 sekolah DIGISCHOOL, bukan satu. Lihat [development/seeder.md](../development/seeder.md).
+
 **Issue:** Seeder hanya membuat 6 dari 7 role. Teacher School tidak ada.
 
 **Cause:** `DatabaseSeeder.php` membuat: SuperAdmin, Relation, SPV Coach, Coach, School PIC, Finance. Teacher School terlewat.
@@ -97,6 +124,8 @@ $teacher->schools()->sync([$school->id]);
 ---
 
 ## M-003: Attendance Export Memuat Seluruh Dataset ke Memory
+
+**Status: RESOLVED** — matriks dibangun dengan `chunk(1000)`.
 
 **Issue:** `AttendanceExportService::getMatrixData()` menggunakan `$query->get()` yang memuat semua attendance records ke memory sekaligus.
 
@@ -141,6 +170,8 @@ $query->with([...])->chunk(1000, function ($records) use (&$matrix, &$dates) {
 
 ## M-004: Kolom `photo_path` Legacy Masih Ada di Reports
 
+**Status: RESOLVED** — kolom di-drop oleh migrasi `2026_09_11_000005_drop_photo_path_from_reports` dan sudah tidak ada di `Report::$fillable`.
+
 **Issue:** Kolom `photo_path` di tabel `reports` dan di `Report::$fillable` masih ada, padahal media sudah menggunakan `report_media` table.
 
 **Cause:**
@@ -173,6 +204,8 @@ $query->with([...])->chunk(1000, function ($records) use (&$matrix, &$dates) {
 
 ## M-005: Tidak Ada Unique Constraint pada `report_attendances (report_id, student_id)`
 
+**Status: RESOLVED** — migrasi `2026_09_11_000006_add_unique_report_student_to_report_attendances`, diterapkan setelah deduplikasi dan aman untuk rollback MySQL.
+
 **Issue:** Tabel `report_attendances` tidak memiliki unique constraint pada kombinasi `(report_id, student_id)`, sehingga secara teknis bisa terjadi duplikat.
 
 **Cause:** Migration `create_report_attendances_table.php` hanya mendefinisikan kolom dan FK, tanpa unique index.
@@ -202,6 +235,18 @@ Schema::table('report_attendances', function (Blueprint $table) {
 ---
 
 ## M-006: Tidak Ada Re-validation Class Assignment Saat Report Update
+
+**Status: RESOLVED.**
+
+**Perbaikan terverifikasi** di `app/Http/Controllers/Coach/ReportController.php`:
+
+```php
+// QA M-006: assignment bisa berubah sejak laporan dibuat — pastikan coach
+// masih ditugaskan ke kelas laporan ini sebelum resubmit.
+$this->assignedClassOrFail((int) $report->class_id, $report->report_date->toDateString());
+```
+
+Perhatikan parameter kedua: validasi memakai **tanggal sesi laporan**, sehingga penugasan sementara yang terikat rentang tanggal ikut diperhitungkan dengan benar.
 
 **Issue:** Saat Coach mengedit dan resubmit report yang di-reject, controller tidak mengecek apakah Coach masih assigned ke class tersebut.
 

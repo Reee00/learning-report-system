@@ -1,248 +1,283 @@
 # Dokumentasi Developer: Learning Report System
 
-## 1. Pendahuluan
-Dokumentasi ini ditujukan untuk junior developer yang ingin memahami, mengembangkan, atau memelihara aplikasi Learning Report System.
+Disinkronkan dengan kode: **2026-09-28**.
 
-Aplikasi ini dibangun dengan Laravel dan menyediakan fitur untuk:
-- login dan autentikasi pengguna
-- manajemen sekolah, kelas, siswa, coach, dan PIC sekolah
-- coach membuat laporan pembelajaran
-- SuperAdmin/Relation mengelola data dan memeriksa laporan sesuai authorization
-- PIC sekolah melihat laporan untuk sekolahnya
+Dokumen ini ditujukan untuk developer yang baru masuk ke proyek ini. Isinya menjelaskan struktur, konvensi, dan alur kerja yang berlaku **saat ini**. Bila dokumen ini berbeda dengan kode, **kode yang benar** — perbarui dokumennya.
 
-## 2. Teknologi Utama
-- Laravel PHP framework
-- Blade templates untuk tampilan
-- Eloquent ORM untuk model database
-- Cloudinary untuk upload foto dan video
-- FastExcel untuk import siswa melalui file Excel/CSV
+Referensi yang lebih dalam ada di [`docs/`](docs/); peta lengkapnya di [`docs/README.md`](docs/README.md).
 
-## 3. Struktur Proyek Utama
-Berikut folder dan file penting yang harus diketahui:
+---
 
-- `routes/web.php` - definisi rute utama aplikasi
-- `app/Http/Controllers/` - semua logic controller
-- `app/Models/` - model Eloquent untuk entitas database
-- `app/Http/Middleware/RoleMiddleware.php` - middleware untuk kontrol role
-- `resources/views/` - tampilan Blade
-- `database/migrations/` - struktur tabel database
-- `app/Helpers/CloudinaryHelper.php` - helper upload/delete file ke Cloudinary
+## 1. Gambaran Aplikasi
 
-## 4. Role Pengguna dan Akses
-Aplikasi menggunakan role berikut:
+LRS mengelola:
 
-1. `superadmin`
-   - akses penuh ke dashboard dan modul sistem
-   - manajemen user, role, master data, laporan, dan konfigurasi
+- data master sekolah, kelas, program, murid, coach, dan pengguna;
+- jadwal mengajar (pola berulang → sesi bertanggal);
+- laporan pembelajaran dari coach, lengkap dengan kehadiran murid dan lampiran media;
+- alur review laporan (setujui / tolak / kirim ulang);
+- kehadiran dan export-nya;
+- notifikasi dalam aplikasi dan Web Push.
 
-2. `relation`
-   - akses operasional Relation pada master data dan laporan sesuai permission
-   - input sekolah, kelas, siswa, dan program
-   - export attendance sesuai scope
+Tidak ada aplikasi API terpisah — tidak ada `routes/api.php`. Semua route ada di [`routes/web.php`](routes/web.php).
 
-3. `coach`
-   - membuat laporan pembelajaran
-   - mengedit laporan dengan status `draft` atau `rejected`
-   - melihat daftar kelas yang di-assign
-   - upload foto dan video
-   - menyimpan absensi siswa
+## 2. Teknologi
 
-4. `school_pic`
-   - melihat dashboard sekolah sendiri
-   - melihat laporan untuk sekolah yang terhubung
+| Komponen | Keterangan |
+|---|---|
+| PHP `^8.4`, Laravel `^12.0` | Framework utama |
+| Blade + Bootstrap 5.3 | Tampilan; Bootstrap Icons lewat CDN |
+| Eloquent | Akses database |
+| `rap2hpoutre/fast-excel` | Impor murid dan template sesi jadwal |
+| OpenSpout | Membaca workbook induk DIGISchool |
+| Dompdf | Export PDF kehadiran |
+| `minishlink/web-push` | Web Push (VAPID) |
+| Service worker `public/sw.js` | PWA, ditulis sendiri tanpa pustaka |
 
-## 5. Alur Utama Aplikasi
-### 5.1 Login
-Rute login ditentukan di `routes/web.php`:
-- `GET /login` menampilkan form login
-- `POST /login` melakukan autentikasi
-- `POST /logout` keluar dari aplikasi
+**Penyimpanan media: lokal dan privat.** Integrasi Cloudinary sudah **dihapus seluruhnya** pada 2026-09-11 — paket, helper, konfigurasi, perintah `media:migrate-cloudinary`, dan seluruh cabang fallback URL eksternal. Jangan menambahkan kembali referensi Cloudinary.
 
-Semua rute penting berada di dalam middleware `auth`.
+## 3. Struktur Proyek
 
-### 5.2 Rute dan Group Akses
-- `Route::middleware(['auth', 'role:coach'])->prefix('coach')->name('coach.')->group(...)`
-  - Mengelola laporan coach
-- `Route::middleware(['auth', 'role:relation,superadmin'])->prefix('admin')->name('admin.')->group(...)`
-  - Route prefix `admin` dipertahankan sebagai compatibility layer untuk dashboard, user, schools, classes, coaches, dan reports
-- `Route::middleware(['auth', 'role:school_pic'])->prefix('pic')->name('pic.')->group(...)`
-  - Dashboard PIC sekolah
-- Rute publik untuk siswa:
-  - `GET /classes/{class}/students`
-  - `POST /classes/{class}/students`
-  - `POST /classes/{class}/students/import`
-  - `DELETE /classes/{class}/students/{student}`
-  - `GET /students/template`
+```
+app/
+├── Console/Commands/         PurgeActivityLogs.php
+├── Http/
+│   ├── Controllers/          20 controller (lihat §7)
+│   └── Middleware/           RoleMiddleware, PermissionMiddleware, PermissionAnyMiddleware
+├── Jobs/                     SendWebPush
+├── Models/                   14 model (lihat §6)
+├── Notifications/            CustomNotification, ReportReminderNotification
+├── Providers/                AppServiceProvider, WebPushServiceProvider
+└── Services/                 9 service (lihat §8)
+bootstrap/app.php             Middleware alias, penanganan PostTooLargeException
+config/                       filesystems.php (disk report_media), queue.php, webpush.php
+database/migrations/          28 migrasi
+database/seeders/             DatabaseSeeder.php
+public/
+├── manifest.json             Manifest PWA
+├── sw.js                     Service worker
+└── .user.ini                 Batas unggah untuk deployment FPM
+resources/views/              Blade (layouts, admin, coach, pic, attendance, media)
+routes/web.php                Seluruh route aplikasi (89 route non-vendor)
+tests/Feature/ tests/Unit/    Suite PHPUnit
+tests/JavaScript/             Suite service worker
+```
 
-### 5.3 Middleware Role
-`app/Http/Middleware/RoleMiddleware.php`
-- Memastikan user sudah login
-- Memeriksa role user dari parameter middleware
-- Jika tidak sesuai, return `403 Forbidden`
+## 4. Middleware
 
-Contoh penggunaan:
-- `middleware('role:relation,superadmin')`
-- `middleware('role:coach,relation,superadmin')` jika capability tersebut memang dibagi
+Didaftarkan sebagai alias di [`bootstrap/app.php`](bootstrap/app.php):
 
-## 6. Model Utama dan Relasi
-### 6.1 `User`
-- `name`, `email`, `password`, `role`, `school_id`
-- relasi:
-  - `school()` untuk PIC sekolah
-  - `coachClasses()` untuk coach assignment kelas
+| Alias | Kelas | Fungsi |
+|---|---|---|
+| `role` | `RoleMiddleware` | Memeriksa `users.role` ada di daftar parameter |
+| `permission` | `PermissionMiddleware` | Memeriksa satu capability |
+| `permission_any` | `PermissionAnyMiddleware` | Lolos bila salah satu capability terpenuhi |
+| `auth` | `Authenticate` | Bawaan Laravel |
 
-### 6.2 `School`
-- `name`, `address`, `pic_name`
-- relasi:
-  - `classes()` daftar kelas di sekolah
-  - `users()` daftar pengguna yang terkait
+Contoh pemakaian: `middleware(['auth', 'permission:attendance.export'])`.
 
-### 6.3 `SchoolClass`
-- disimpan di tabel `classes`
-- `school_id`, `name`
-- relasi:
-  - `school()` sekolah
-  - `students()` siswa
-  - `coachAssignments()` pemetaan coach ke kelas
+`trustProxies(at: '*')` diaktifkan. `PostTooLargeException` ditangani agar unggahan melebihi batas menghasilkan pesan flash yang ramah, bukan halaman 500 kosong.
 
-### 6.4 `Student`
-- `name`, `class_id`
-- relasi: `class()` ke `SchoolClass`
+**Aturan:** middleware adalah gerbang pertama, bukan satu-satunya. Setiap controller yang menyentuh data ber-scope **wajib** memfilter ulang lewat service scope — visibilitas di UI bukan batas keamanan.
 
-### 6.5 `Report`
-- `coach_id`, `school_id`, `class_id`, `report_date`
-- `lesson_material`, `activity_summary`, `notes`
-- `status`: `submitted`, `approved`, `rejected`, `draft`
-- `admin_notes`, `approved_by`, `approved_at`
-- relasi:
-  - `coach()`
-  - `school()`
-  - `schoolClass()`
-  - `attendances()`
-  - `photos()` dan `videos()`
+## 5. Peran dan Kewenangan
 
-### 6.6 `ReportAttendance`
-- `report_id`, `student_id`, `status`
-- status absensi: `present`, `absent`, `sick`, `permission`
+Tujuh peran runtime:
 
-### 6.7 `ReportMedia`
-- `report_id`, `type`, `path`, `original_name`
-- type: `photo` atau `video`
-- method `url()` mengembalikan URL publik
+`superadmin`, `relation`, `spv_coach`, `coach`, `school_pic`, `teacher_school`, `finance`.
 
-### 6.8 `CoachClass`
-- `coach_id`, `class_id`
-- pivot table untuk assignment coach ke kelas
+Kewenangan didefinisikan **di kode**, bukan di tabel: konstanta `AuthorizationService::ROLE_PERMISSIONS`. SuperAdmin adalah wildcard. `users.manage` sengaja tidak diberikan ke peran mana pun sehingga hanya SuperAdmin yang lolos.
 
-## 7. Controller Penting
-### 7.1 `App\Http\Controllers\Coach\ReportController`
-- `index()` menampilkan daftar laporan coach
-- `create()` menampilkan form pembuatan laporan
-- `store()` menyimpan laporan baru, upload foto/video, menyimpan absensi
-- `edit()` mengedit laporan dengan batasan role dan status
-- `update()` memperbarui laporan, menghapus media, upload media baru
+`admin/*` adalah namespace URL untuk kompatibilitas, **bukan nama peran**. Relation dan pengguna lain memakai namespace itu sesuai capability-nya.
 
-### 7.2 `App\Http\Controllers\Admin\DashboardController`
-- `index()` menampilkan statistik laporan dan daftar laporan `submitted`
+Untuk matriks lengkap capability × peran, lihat [`docs/reference/permissions.md`](docs/reference/permissions.md).
 
-### 7.3 `App\Http\Controllers\Admin\UserController`
-- manajemen pengguna: `index`, `store`, `update`, `resetPassword`, `destroy`
+Untuk menambah capability baru:
 
-### 7.4 `App\Http\Controllers\Admin\SchoolController`
-- manajemen sekolah: `index`, `store`, `update`, `destroy`
+1. Tambahkan namanya ke peran terkait di `ROLE_PERMISSIONS`.
+2. Pasang middleware `permission:<nama>` pada route.
+3. Bila berkaitan dengan sekolah/kelas, tambahkan pemeriksaan scope di controller atau service.
 
-### 7.5 `App\Http\Controllers\Admin\ClassController`
-- manajemen kelas: `index`, `store`, `destroy`
+## 6. Model
 
-### 7.6 `App\Http\Controllers\Admin\CoachController`
-- `index()` daftar coach
-- `show()` detail coach dan assignment kelas
-- `assign()` assign coach ke kelas
-- `unassign()` hapus assignment
+Empat belas model di `app/Models/`:
 
-### 7.7 `App\Http\Controllers\Admin\ReportController`
-- `index()` daftar laporan admin dengan filter
-- `show()` detail laporan
-- `approve()` setujui laporan
-- `reject()` tolak laporan dengan catatan admin
+**Data master** — `User`, `School`, `SchoolClass`, `Student`, `Program`, `ProgramClass`, `CoachClass`
 
-### 7.8 `App\Http\Controllers\StudentController`
-- `show()` halaman daftar siswa per kelas
-- `store()` tambah siswa manual
-- `import()` upload siswa dari file Excel/CSV
-- `destroy()` hapus siswa
-- `template()` download template CSV
-- `authorizeAccess()` validasi akses berdasarkan role
+**Pelaporan** — `Report`, `ReportAttendance`, `ReportMedia`
 
-## 8. Upload Media dan Cloudinary
-File media (foto/video) diupload menggunakan `app/Helpers/CloudinaryHelper.php`.
-- `CloudinaryHelper::upload($filePath, $folder)` untuk upload
-- `CloudinaryHelper::delete($publicId)` untuk hapus jika diperlukan
+**Jadwal** — `TeachingSchedule`, `TeachingScheduleTemplate`
 
-Konfigurasi Cloudinary disimpan di `config/services.php` dan environment file: `cloudinary.cloud_name`, `cloudinary.api_key`, `cloudinary.api_secret`.
+**Operasional** — `ActivityLog`, `PushSubscription`
 
-## 9. Import Siswa
-Fitur import siswa ada di `StudentController@import` menggunakan package `Rap2hpoutre\FastExcel`.
-- Format file: `xlsx`, `xls`, `csv`
-- Kolom utama: `nama_siswa` atau `name`
-- Sistem akan melewati siswa yang sudah ada di kelas tersebut
+Catatan penting per model:
 
-## 10. Database dan Migrasi
-Tabel penting:
-- `users`
-- `schools`
-- `classes`
-- `students`
-- `coach_classes`
-- `reports`
-- `report_attendances`
-- `report_media`
-- `sessions`
+- **`Report`** — status `draft`, `submitted`, `approved`, `rejected`. Memiliki `teaching_schedule_id` yang **nullable dan unik** (satu sesi = satu laporan). Kolom `photo_path` legacy sudah dihapus. Field konten: `lesson_material`, `goals_materi`, `activity_report`.
+- **`ReportMedia`** — `type` bernilai `photo`, `video`, atau `attendance`. `path` adalah jalur relatif pada disk privat, bukan URL publik; akses selalu lewat `/media/{media}`.
+- **`TeachingSchedule`** — `day_of_week` di-denormalisasi lewat hook `saving` agar filter hari portabel antara MySQL dan SQLite. Jam selalu disimpan `HH:MM:SS` lewat mutator. Memiliki `is_active`; sesi nonaktif tidak menerima laporan baru tetapi tetap tampil sebagai riwayat.
+- **`TeachingScheduleTemplate`** — satu baris per kelas dalam sebuah **pola**; identitas pola adalah `(day_of_week, school_id, start_date)`. `end_date` adalah turunan, bukan kolom.
 
-Untuk membuat migrasi dan menjalankan seed, gunakan:
+## 7. Controller
+
+`app/Http/Controllers/`:
+
+**`Admin/`** (11) — `ActivityLogController`, `ClassController`, `CoachController`, `DashboardController`, `NotificationController`, `ProgramController`, `ReportController`, `ScheduleController`, `ScheduleTemplateController`, `SchoolController`, `UserController`
+
+**`Coach/`** — `ReportController` (buat/edit/kirim laporan), `NotificationController` (tandai sudah dibaca), `StudentController`
+
+**`SchoolPic/`** — `DashboardController`
+
+**Lainnya** — `AttendanceController`, `MediaController`, `PushSubscriptionController`, `SchoolPic/…`, `StudentController`, `Auth/LoginController`
+
+Beberapa hal yang sering menjebak:
+
+- **`AttendanceController::export()`** memeriksa capability **per format**: CSV menerima `attendance.export` **atau** `attendance.export_csv`; Excel/XLSX dan PDF hanya menerima `attendance.export`. Finance memegang `attendance.export` (review meeting 2026-10-01, menggantikan aturan CSV-only yang lama), jadi ketiga format terbuka baginya; `attendance.export_csv` kini tidak dipegang role mana pun tetapi tetap sah sebagai capability.
+- **`MediaController::authorizeMediaAccess()`** memutuskan hak akses per laporan: SuperAdmin/Relation/SPV Coach lolos; Coach harus pemilik laporan; PIC/Teacher/Finance harus berada dalam scope sekolah **dan** laporan sudah `approved`.
+- **`Coach\ReportController::update()`** memvalidasi ulang penugasan kelas dengan `assignedClassOrFail($report->class_id, $report->report_date)` — parameter tanggal penting agar penugasan sementara yang terikat rentang tanggal ikut dinilai.
+
+## 8. Service
+
+Sembilan service di `app/Services/` — tempat sebagian besar logika non-trivial berada. Controller sebaiknya tipis.
+
+| Service | Tanggung jawab |
+|---|---|
+| `AuthorizationService` | Sumber tunggal capability dan scope; `allows()`, `accessibleSchoolIds()` |
+| `AttendanceScopeService` | Filter kueri kehadiran/laporan sesuai scope peminta |
+| `AttendanceExportService` | Matriks kehadiran untuk CSV/Excel/PDF; dibangun dengan `chunk(1000)` |
+| `MediaStorageService` | Simpan/hapus media pada disk privat; nama berkas aman |
+| `ReportReminderService` | Deteksi laporan belum dibuat dan kirim pengingat |
+| `CustomNotificationService` | Notifikasi operasional bertarget |
+| `ScheduleTemplateService` | Bangun, generate, dan kelola pola jadwal |
+| `TeachingScheduleImportService` | Impor jadwal dari dua format berkas Excel |
+| `ActivityLogService` | Satu-satunya jalur penulisan activity log; metadata dibersihkan dari kunci sensitif |
+
+## 9. Kehadiran
+
+Kehadiran diisi coach sebagai bagian dari laporan. Status: `present`, `absent`, `sick`, `permission`.
+
+Halaman `/attendance` bertingkat: daftar tanggal → sekolah → kelas → detail sesi.
+
+**Angka akumulasi tidak ditampilkan di halaman.** Rekap hanya ada di dokumen yang diunduh: kolom terakhir CSV `TOTAL HADIR` dan kolom paling kanan PDF (tebal). Ini keputusan 2026-09-13 — panel ringkasan dan route `/attendance/summary` sudah dihapus dan **tidak boleh dihidupkan kembali tanpa keputusan baru**.
+
+Catatan MySQL: `AttendanceScopeService::query()` menambahkan `ORDER BY report_attendances.id DESC`. Kueri yang memakai `GROUP BY` **harus** memanggil `reorder()` lebih dulu, jika tidak MySQL mode `ONLY_FULL_GROUP_BY` menolak kueri (error 1055). Regresinya dijaga `tests/Feature/AttendanceMysqlOnlyFullGroupByTest.php` yang berjalan di koneksi MySQL nyata (butuh env `TEST_MYSQL_*`; dilewati pada suite SQLite default).
+
+## 10. Laporan
+
+Alur: Coach membuat dan mengirim → Relation atau SuperAdmin mereview → setujui atau tolak. Penolakan wajib disertai `admin_notes`. Coach dapat mengedit laporan berstatus `draft` atau `rejected`, lalu mengirim ulang.
+
+- **Satu sesi = satu laporan.** `reports.teaching_schedule_id` unik. Sesi yang sudah dilaporkan — oleh coach utama maupun coach pendamping — tidak muncul lagi sebagai pilihan.
+- Persetujuan mencatat `approved_by` dan `approved_at`.
+- SPV Coach dapat melihat tetapi **tidak** dapat menyetujui/menolak.
+- Dua halaman berbeda: **antrean review** (kerja reviewer) dan **arsip** (riwayat baca-saja, dikelompokkan sekolah → kelas).
+
+Detail lengkap: [`docs/modules/reports.md`](docs/modules/reports.md).
+
+## 11. Jadwal Mengajar
+
+Dua lapis data:
+
+1. **Pola** (`teaching_schedule_templates`) — sekelompok baris dengan `(day_of_week, school_id, start_date)` sama. Tanggal mulai dan jumlah pertemuan melekat pada **blok sekolah**, bukan pada form global. Tidak ada periode global; `week_start` sudah pensiun dan diabaikan bila dikirim.
+2. **Sesi** (`teaching_schedules`) — pertemuan bertanggal hasil generate dari pola.
+
+Coach pendamping disimpan di pivot `teaching_schedule_coach`; `allCoaches()` menggabungkan coach utama dan pendamping.
+
+Karena `DELETE /admin/schedules/{schedule}` akan menangkap path seperti `schedules/pattern`, **route statis wajib didaftarkan sebelum route ber-parameter**. Ini pernah menjadi sumber bug; jangan mengubah urutannya.
+
+Detail lengkap: [`docs/modules/schedule.md`](docs/modules/schedule.md).
+
+## 12. Media
+
+Media baru disimpan lewat `MediaStorageService` ke disk `report_media`, berakar di `storage/app/report-media` — **di luar** symlink publik.
+
+- Struktur: `reports/{tahun}/{report_id}/{images|videos|attendance}/`
+- Nama berkas dibuat sistem: `{Ymd_His}_{8 karakter acak}.{ekstensi tersanitasi}` — tidak pernah memakai nama asli dari pengguna.
+- Batas unggah: 10 foto × 10 MB, 3 video × 100 MB, 5 bukti kehadiran × 10 MB.
+- Penyajian hanya lewat `/media/{media}` dengan header `Cache-Control: private, max-age=3600`.
+- Database menyimpan metadata (`path`, `type`, `original_name`, `disk`, ukuran), bukan berkas binernya.
+
+Detail lengkap: [`docs/modules/media.md`](docs/modules/media.md).
+
+## 13. Notifikasi, Web Push, dan Queue
+
+Dua kelas notifikasi:
+
+- **`CustomNotification`** — mengimplementasikan `ShouldQueue`; notifikasi operasional bertarget.
+- **`ReportReminderNotification`** — memakai trait `Queueable` tetapi **tidak** `ShouldQueue`, sehingga dikirim langsung.
+
+Kanal Web Push ditangani `WebPushChannel` dengan beberapa prinsip: tidak pernah membuat catatan notifikasi kedua, tidak pernah melempar exception, menjadi no-op bila VAPID kosong, hanya menghapus langganan pada respons 404/410 dan terbatas pada pemiliknya, serta membatasi payload pada judul dan ringkasan. Pengiriman dilakukan job `SendWebPush` (`$tries = 3`, `$backoff = [10, 60]`, `$timeout = 30`).
+
+**Konsekuensi bagi developer: queue worker wajib berjalan.** `QUEUE_CONNECTION` default `database`. Tanpa `php artisan queue:work`, notifikasi tidak terkirim dan tabel `jobs` menumpuk. Lihat [`docs/operations/queue-worker.md`](docs/operations/queue-worker.md).
+
+Bila VAPID kosong, fitur push menjadi no-op total dan tombol aktivasi tidak muncul — aplikasi tetap berjalan normal.
+
+## 14. PWA
+
+- `public/manifest.json` — sengaja berekstensi `.json`, bukan `.webmanifest`, agar tidak perlu menambah MIME type di nginx.
+- `public/sw.js` — konstanta `SW_VERSION` adalah kunci cache. **Naikkan versinya setiap kali mengubah aset statis**, jika tidak pengguna akan terus menerima berkas lama.
+- Navigasi selalu *network-only*: halaman berisi data pengguna tidak pernah disimpan di perangkat. Path terproteksi dilewatkan begitu saja ke jaringan.
+- Handler push **tidak** menulis apa pun ke Cache Storage.
+
+```bash
+npm run test:pwa     # 37 pemeriksaan routing service worker
+```
+
+Detail lengkap: [`docs/modules/pwa.md`](docs/modules/pwa.md).
+
+## 15. Database dan Migrasi
+
+28 migrasi. Tabel utama dikelompokkan:
+
+- **Inti** — `users`, `schools`, `classes`, `students`, `coach_classes`, `school_user`, `programs`, `program_classes`
+- **Pelaporan** — `reports`, `report_attendances`, `report_media`
+- **Jadwal** — `teaching_schedules`, `teaching_schedule_coach`, `teaching_schedule_templates`, `teaching_schedule_template_coach`
+- **Operasional** — `activity_logs`, `notifications`, `push_subscriptions`, `sessions`, `jobs`
+
+Detail kolom dan relasi: [`docs/02_DATABASE_DOKUMENTASI.md`](docs/02_DATABASE_DOKUMENTASI.md).
+
+**Temuan terbuka:** belum ada migrasi untuk tabel `cache` dan `cache_locks`, padahal `.env.example` menyetel `CACHE_STORE=database`. Jalankan `php artisan make:cache-table` lalu `php artisan migrate`, atau alihkan ke `file`.
+
 ```bash
 php artisan migrate
 php artisan db:seed
 ```
 
-## 11. Setup Lokal
-1. Salin `.env.example` menjadi `.env`
-2. Atur koneksi database di `.env`
-3. Set `APP_KEY` dengan:
+Seeder hanya untuk pengembangan — **jangan dijalankan di produksi**. Lihat [`docs/development/seeder.md`](docs/development/seeder.md).
+
+## 16. Menjalankan Proyek
+
 ```bash
-php artisan key:generate
-```
-4. Jalankan migrasi:
-```bash
-php artisan migrate
-```
-5. Jalankan server lokal:
-```bash
-php artisan serve
+php artisan migrate --seed
+php artisan queue:work          # terminal terpisah — wajib
+composer dev                    # server web + vite
 ```
 
-## 12. Tips Bekerja di Proyek Ini
-- Pelajari `routes/web.php` untuk memahami URL utama dan namespace controller.
-- Baca controller sesuai role: `Admin` (technical namespace compatibility), `Coach`, `Student`, dan `Pic`.
-- Pastikan `RoleMiddleware` digunakan di semua rute yang butuh proteksi role.
-- Jika menambahkan field baru pada `Report`, update model, migrasi, controller, dan view.
-- Untuk debug upload Cloudinary, cek `config/services.php` dan environment variable.
+Pengujian:
 
-## 13. Cara Menambahkan Fitur Baru
-1. Tambahkan field di migration bila perlu.
-2. Tambahkan properti fillable di model.
-3. Perbarui controller validation dan logic.
-4. Tambahkan route baru di `routes/web.php`.
-5. Buat atau perbarui view Blade di `resources/views/`.
-6. Uji alur dengan user yang sesuai role.
+```bash
+php artisan test
+npm run test:pwa
+```
 
-## 14. Penutup
-Dokumentasi ini memberikan gambaran arsitektur dan alur kerja utama aplikasi.
-Jika ingin belajar lebih dalam, fokus pada:
-- Eloquent relations
-- Request validation
-- Middleware dan auth
-- File upload
-- Blade templates
+## 17. Konvensi dan Aturan Kerja
 
-Selamat belajar dan semoga membantu kamu memahami Learning Report System!
+- **Kode adalah sumber kebenaran.** Bila dokumen berbeda dengan kode, perbarui dokumennya — jangan mengubah kode agar cocok dengan dokumen.
+- **Scope ditegakkan di server.** Setiap kueri data ber-scope harus melewati `AuthorizationService::accessibleSchoolIds()` atau `AttendanceScopeService`. Filter dari request hanya mempersempit; tidak pernah memperluas.
+- **Capability baru** ditambahkan di `AuthorizationService::ROLE_PERMISSIONS`, bukan di view.
+- **Media tetap privat.** Jangan pernah menaruh berkas laporan di bawah `public/` atau mengembalikan URL disk langsung.
+- **Jangan commit `.env`.** Rahasia (kredensial database, kunci VAPID privat) tidak boleh masuk repositori.
+- **Jangan menghidupkan kembali Cloudinary** atau membuat tabel/role yang sudah dihapus (`admin` dan `PIC Sekolah` bukan nama peran yang berlaku).
+- **Urutan route penting** pada grup jadwal — lihat §11.
+- **Naikkan `SW_VERSION`** bila mengubah aset statis PWA.
+- **Migrasi bersifat inkremental** dan harus punya jalur rollback yang teruji, termasuk di MySQL.
+
+## 18. Alur Menambah Fitur
+
+1. Mulai dari route di `routes/web.php` — tentukan middleware/capability dan urutan yang benar.
+2. Tambahkan capability ke `ROLE_PERMISSIONS` bila perlu.
+3. Tambahkan migrasi bila struktur data berubah.
+4. Tambahkan kolom ke `$fillable` model, lalu relasi/metode yang dibutuhkan.
+5. Taruh logika non-trivial di service, bukan di controller.
+6. Perbarui view Blade terkait.
+7. Tambahkan test: jalur sukses, penolakan akses, dan isolasi antar-sekolah.
+8. Jalankan `php artisan test` dan `npm run test:pwa`.
+9. Perbarui dokumentasi terkait di `docs/` beserta tanggal sinkronisasinya.

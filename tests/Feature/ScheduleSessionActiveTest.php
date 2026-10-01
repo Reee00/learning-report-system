@@ -344,10 +344,14 @@ class ScheduleSessionActiveTest extends TestCase
         $this->assertDatabaseHas('reports', ['id' => $report->id, 'status' => 'approved']);
     }
 
-    public function test_deactivated_session_still_accepts_report_for_historical_record(): void
+    /**
+     * Aturan final 2026-09-28: sesi nonaktif berarti sesi itu TIDAK
+     * operasional — laporan BARU untuknya ditolak. Yang dilindungi adalah
+     * riwayat: laporan yang sudah ada sebelumnya tetap tersimpan dan tetap
+     * bisa dikoreksi coach-nya lewat alur resubmit.
+     */
+    public function test_deactivated_session_rejects_a_new_report(): void
     {
-        // Menonaktifkan sesi menghapus KEWAJIBAN laporan, bukan IZIN menulisnya:
-        // laporan yang memang sudah terjadi tetap boleh dicatat.
         $this->generatePattern($this->schoolA->id, $this->classA->id, $this->coach->id, 2);
 
         $session = $this->sessionAt(1);
@@ -368,14 +372,61 @@ class ScheduleSessionActiveTest extends TestCase
                 'activity_report' => 'Aktivitas',
                 'attendance' => [$student->id => 'present'],
             ])
-            ->assertRedirect();
+            ->assertSessionHasErrors([
+                'report_date' => 'Sesi ini dinonaktifkan, jadi laporan baru tidak bisa dibuat untuk pertemuan ini.',
+            ]);
 
-        $this->assertTrue(
-            Report::where('coach_id', $this->coach->id)
-                ->where('class_id', $this->classA->id)
-                ->whereDate('report_date', $session->session_date->toDateString())
-                ->exists(),
-            'Laporan untuk sesi nonaktif harus tetap bisa dicatat.'
-        );
+        $this->assertSame(0, Report::count());
+    }
+
+    /**
+     * Sesi nonaktif dengan laporan yang sudah ada: laporannya tetap ada,
+     * tetap milik coach-nya, dan tetap bisa dikoreksi bila ditolak reviewer.
+     */
+    public function test_deactivated_session_preserves_its_existing_report(): void
+    {
+        $this->generatePattern($this->schoolA->id, $this->classA->id, $this->coach->id, 2);
+
+        $session = $this->sessionAt(1);
+
+        $report = Report::create([
+            'coach_id' => $this->coach->id,
+            'school_id' => $this->schoolA->id,
+            'class_id' => $this->classA->id,
+            'teaching_schedule_id' => $session->id,
+            'report_date' => $session->session_date->toDateString(),
+            'lesson_material' => 'Materi',
+            'goals_materi' => 'Goals',
+            'activity_report' => 'Aktivitas',
+            'status' => 'rejected',
+            'admin_notes' => 'Perbaiki foto',
+        ]);
+
+        $this->actingAs($this->relation)->patch(route('admin.schedules.toggle-active', $session));
+
+        $this->assertFalse($session->refresh()->is_active);
+        $this->assertSame(1, Report::count());
+        $this->assertSame('rejected', $report->refresh()->status);
+
+        // Menonaktifkan sesi tidak mencabut hak koreksi atas laporan yang sudah ada.
+        $student = Student::create([
+            'school_id' => $this->schoolA->id,
+            'class_id' => $this->classA->id,
+            'name' => 'Murid Satu',
+        ]);
+
+        $this->actingAs($this->coach)
+            ->put(route('coach.reports.update', $report), [
+                'report_date' => $session->session_date->toDateString(),
+                'lesson_material' => 'Materi revisi',
+                'goals_materi' => 'Goals',
+                'activity_report' => 'Aktivitas',
+                'attendance' => [$student->id => 'present'],
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('submitted', $report->refresh()->status);
+        $this->assertSame(1, Report::count());
     }
 }

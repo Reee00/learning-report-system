@@ -5,18 +5,16 @@
 {{-- Detail sekolah: TIDAK ada tombol unduh (keputusan UX 2026-09-14) —
      unduh kelas harus menunggu kelas terpilih di halaman detail kelas. --}}
 <div class="container py-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-1 small">
-            <li class="breadcrumb-item"><a href="{{ route('attendance.index') }}">Attendance</a></li>
-            <li class="breadcrumb-item active" aria-current="page">{{ $school->name }}</li>
-        </ol>
-    </nav>
+    <x-breadcrumb :items="[
+        ['label' => 'Attendance', 'url' => ctx_route('attendance.index', [], true)],
+        ['label' => $school->name],
+    ]" />
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <a href="{{ route('attendance.index', request()->only(['date_from', 'date_to'])) }}" class="btn btn-light border shadow-sm btn-sm mb-2">
+            <a href="{{ ctx_route('attendance.index', [], true) }}" class="btn btn-outline-secondary btn-sm mb-2">
                 <i class="bi bi-arrow-left me-1"></i> Kembali
             </a>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-building text-primary me-2"></i> {{ $school->name }}</h4>
+            <h1 class="h4 mb-1 fw-semibold">{{ $school->name }}</h1>
             <p class="text-muted small mb-0">Pilih kelas untuk melihat sesi kehadiran per tanggal.</p>
         </div>
     </div>
@@ -69,7 +67,7 @@
                     $classModel = $programsByClass->get($classRow->class_id);
                     $programs = $classModel ? $classModel->programs->pluck('name')->implode(', ') : '';
                 @endphp
-                <a href="{{ route('attendance.class', [$school, $classRow->class_id]) }}"
+                <a href="{{ ctx_route('attendance.class', [$school, $classRow->class_id]) }}"
                    class="d-block text-decoration-none border border-light-subtle rounded-3 p-3 mb-3 shadow-sm bg-white">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                         <div class="d-flex align-items-center gap-3">

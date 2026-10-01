@@ -9,7 +9,7 @@
                 <i class="bi bi-building fs-4"></i>
             </div>
             <div>
-                <h4 class="mb-0 fw-bold">Dashboard Sekolah</h4>
+                <h1 class="page-title">Dashboard Sekolah</h1>
                 <div class="text-muted small mt-1">
                     <i class="bi bi-geo-alt me-1"></i>
                     {{ $schools->pluck('name')->join(', ') ?: 'Belum ada sekolah terplot' }}
@@ -228,7 +228,7 @@
                 @empty
                     <tr>
                         <td colspan="6" class="text-center py-5">
-                            <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" alt="No Data" width="64" class="opacity-50 mb-3">
+                            <i class="bi bi-inbox text-muted opacity-50 mb-3 d-block lh-1" style="font-size: 4rem;" aria-hidden="true"></i>
                             <h6 class="text-muted mb-0">Belum ada laporan yang disetujui.</h6>
                         </td>
                     </tr>

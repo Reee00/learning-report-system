@@ -7,6 +7,9 @@
     $authorization = app(\App\Services\AuthorizationService::class);
     $canAssignCoach = $currentUser && $authorization->allows($currentUser, 'coaches.assign');
     $canReassignCoach = $currentUser && $authorization->allows($currentUser, 'coaches.reassign');
+    // Nomor WhatsApp coach = data kontak pribadi; nilainya sudah dibuang di
+    // sisi server oleh CoachController untuk role tanpa izin `coaches.contact`.
+    $canViewCoachContact = $currentUser && $authorization->allows($currentUser, 'coaches.contact');
 @endphp
 
 <div class="container py-4">
@@ -19,24 +22,24 @@
                 {{ substr($coach->name, 0, 1) }}
             </div>
             <div>
-                <h4 class="mb-1 fw-bold text-dark">{{ $coach->name }}</h4>
+                            <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Coach', 'url' => route('admin.coaches.index')],
+                ['label' => $coach->name],
+            ]" />
+<h1 class="page-title">{{ $coach->name }}</h1>
                 <p class="text-muted mb-0"><i class="bi bi-envelope me-2"></i>{{ $coach->email }}</p>
+                @if($canViewCoachContact)
+                    <p class="text-muted mb-0 mt-1">
+                        <i class="bi bi-whatsapp text-success me-2"></i>
+                        <span class="fw-semibold text-dark">Nomor WhatsApp:</span>
+                        @include('partials.whatsapp-link', ['person' => $coach])
+                    </p>
+                @endif
             </div>
         </div>
     </div>
 
-    @if (session('success'))
-        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-    @if (session('error'))
-        <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
     @if ($errors->any())
         <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
             <div class="d-flex align-items-center mb-2">
@@ -65,7 +68,7 @@
                 <div class="table-responsive">
                     @if($coach->coachClasses->isEmpty())
                         <div class="text-center py-5">
-                            <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" alt="No Data" width="64" class="opacity-50 mb-3">
+                            <i class="bi bi-journal-bookmark text-muted opacity-50 mb-3 d-block lh-1" style="font-size: 4rem;" aria-hidden="true"></i>
                             <h6 class="text-muted mb-0">Belum ada kelas yang di-assign ke coach ini.</h6>
                         </div>
                     @else

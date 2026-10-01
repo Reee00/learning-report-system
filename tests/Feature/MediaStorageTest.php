@@ -17,14 +17,14 @@ use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
- * Regression tests for the media storage migration from Cloudinary to local storage.
+ * Regression tests for report media storage.
  *
  * Validates:
  * - Upload, view, delete, replace media
  * - Authorization enforcement on media access
  * - No orphan files after media/report deletion
- * - Media is stored on the private report_media disk (legacy Cloudinary
- *   support removed 2026-09-11; no external-URL fallback remains)
+ * - Media is always stored on the private report_media disk; there is no
+ *   external-URL fallback path and none may be reintroduced
  * - Storage path structure
  */
 class MediaStorageTest extends TestCase

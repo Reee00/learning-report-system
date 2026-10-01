@@ -18,7 +18,11 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-calendar-week text-primary me-2"></i> Jadwal Mengajar</h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Jadwal Mengajar'],
+            ]" />
+<h1 class="page-title">Jadwal Mengajar</h1>
             <p class="text-muted small mb-0">
                 @if(auth()->user()->role === \App\Models\User::ROLE_COACH)
                     Jadwal sesi mengajar Anda.
@@ -49,7 +53,8 @@
         @endif
     </div>
 
-    {{-- Pemilih tampilan: POLA (utama) vs SESI tergenerate --}}
+    {{-- Pemilih tampilan: POLA (metadata preferensi) vs SESI (tempat kerja
+         sebenarnya — tanggal diisi manual di sini). --}}
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item">
             <a class="nav-link {{ $view === 'pola' ? 'active' : '' }}"
@@ -60,7 +65,7 @@
         <li class="nav-item">
             <a class="nav-link {{ $view === 'sesi' ? 'active' : '' }}"
                href="{{ route('admin.schedules.index', array_merge(['view' => 'sesi'], $filters)) }}">
-                <i class="bi bi-calendar-check me-1"></i> Sesi Tergenerate
+                <i class="bi bi-calendar-check me-1"></i> Sesi / Pertemuan
             </a>
         </li>
     </ul>
@@ -194,15 +199,17 @@
                                 </button>
                             </form>
                             <form method="POST" action="{{ route('admin.schedules.pattern.destroy') }}"
-                                  onsubmit="return confirm('Hapus pola {{ $pattern['day_label'] }} — {{ $school->name ?? '' }}? Sesi yang sudah tergenerate TETAP tersimpan.');">
+                                  id="deletePatternForm{{ $school?->id ?? 'all' }}-{{ $pattern['day_of_week'] }}">
                                 @csrf
                                 @method('DELETE')
                                 <input type="hidden" name="day" value="{{ $pattern['day_of_week'] }}">
                                 <input type="hidden" name="school_id" value="{{ $school?->id }}">
                                 <input type="hidden" name="start_date" value="{{ $pattern['start_date']?->toDateString() }}">
                                 <input type="hidden" name="label" value="{{ $pattern['day_label'] }} — {{ $school->name ?? 'Sekolah' }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus pola">
-                                    <i class="bi bi-trash"></i>
+                                <button type="button"
+                                        onclick="confirmSubmitForm('deletePatternForm{{ $school?->id ?? 'all' }}-{{ $pattern['day_of_week'] }}', 'Hapus pola {{ $pattern['day_label'] }} — {{ $school->name ?? '' }} beserta pertemuan hasil generate-nya? Pola yang pertemuannya sudah punya laporan/absensi tidak bisa dihapus.', 'btn-danger', 'Ya, Hapus')"
+                                        class="btn btn-sm btn-outline-danger" title="Hapus pola" aria-label="Hapus pola {{ $pattern['day_label'] }}">
+                                    <i class="bi bi-trash" aria-hidden="true"></i>
                                 </button>
                             </form>
                         @endif
@@ -347,11 +354,15 @@
                     <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
                 </div>
                 <div class="col-12 col-md-6 col-xl-2">
-                    <label class="form-label text-muted small fw-semibold">Status Sesi</label>
+                    <label class="form-label text-muted small fw-semibold">Status Pertemuan</label>
                     <select name="status" class="form-select">
                         <option value="">Semua Status</option>
-                        <option value="aktif" {{ request('status') === 'aktif' ? 'selected' : '' }}>Aktif</option>
-                        <option value="nonaktif" {{ request('status') === 'nonaktif' ? 'selected' : '' }}>Nonaktif</option>
+                        <option value="belum-dijadwalkan" {{ request('status') === 'belum-dijadwalkan' ? 'selected' : '' }}>Belum Dijadwalkan</option>
+                        @foreach(\App\Models\TeachingSchedule::STATUS_LABELS as $statusValue => $statusLabel)
+                            <option value="{{ $statusValue }}" {{ request('status') === $statusValue ? 'selected' : '' }}>{{ $statusLabel }}</option>
+                        @endforeach
+                        <option value="aktif" {{ request('status') === 'aktif' ? 'selected' : '' }}>Aktif (operasional)</option>
+                        <option value="nonaktif" {{ request('status') === 'nonaktif' ? 'selected' : '' }}>Inactive</option>
                     </select>
                 </div>
                 <div class="col-12 col-md-6 col-xl-2">
@@ -375,25 +386,80 @@
     </div>
 
     <div class="card shadow-sm border-0">
-        <div class="card-header bg-white py-3">
-            <span class="fw-bold fs-5 text-dark"><i class="bi bi-list-task text-primary me-2"></i> Sesi Tergenerate</span>
-            <span class="small text-muted ms-2">Pertemuan hasil generate dari pola jadwal.</span>
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <span class="fw-bold fs-5 text-dark"><i class="bi bi-list-task text-primary me-2"></i> Sesi / Pertemuan</span>
+                <span class="small text-muted ms-2">Tanggal tiap pertemuan diisi manual dan bisa dipindah kapan saja — tanpa perlu generate ulang.</span>
+            </div>
+            @if($canManage)
+                <a href="{{ route('admin.schedules.sessions.create') }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus-lg me-1"></i> Tambah Pertemuan
+                </a>
+            @endif
         </div>
+
+        @if($progress->isNotEmpty())
+            {{-- Target & progress per kelas: "3/10 Pertemuan Terlaksana".
+                 Angka progress dihitung di backend dari sesi yang sudah punya
+                 laporan (status dianggap selesai) — bukan dari jumlah sesi
+                 yang tergenerate. --}}
+            <div class="card-body border-bottom border-light py-3">
+                <div class="small fw-semibold text-muted mb-2">
+                    <i class="bi bi-bullseye me-1"></i> Target &amp; progress pertemuan
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    @foreach($progress as $classId => $row)
+                        @php
+                            $class = $classes->firstWhere('id', $classId);
+                            $target = $row['target'];
+                            $done = $row['terlaksana'];
+                            $percent = $target ? min(100, (int) round($done / $target * 100)) : 0;
+                        @endphp
+                        <div class="border rounded-3 px-3 py-2 bg-light-subtle" style="min-width: 240px;">
+                            <div class="d-flex justify-content-between align-items-baseline gap-2">
+                                <span class="fw-semibold small text-dark">{{ $class->name ?? 'Kelas #'.$classId }}</span>
+                                <span class="small text-muted">
+                                    @if($target)
+                                        <span class="fw-bold text-dark">{{ $done }}/{{ $target }}</span> Pertemuan Terlaksana
+                                    @else
+                                        <span class="fw-bold text-dark">{{ $done }}</span> pertemuan terlaksana
+                                        &bull; <span class="fst-italic">target belum ditetapkan</span>
+                                    @endif
+                                </span>
+                            </div>
+                            @if($target)
+                                <div class="progress mt-2" style="height: 6px;">
+                                    <div class="progress-bar" role="progressbar" style="width: {{ $percent }}%"></div>
+                                </div>
+                            @endif
+                            <div class="small text-muted mt-1">
+                                <span>{{ $row['scheduled'] }} sesi terjadwal</span>
+                                @if($row['unscheduled'] > 0)
+                                    &bull; <span class="text-warning-emphasis">{{ $row['unscheduled'] }} belum dijadwalkan</span>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 sched-table">
                 <thead class="table-light">
                     <tr>
-                        <th class="text-secondary fw-semibold ps-4">Tanggal</th>
+                        <th class="text-secondary fw-semibold ps-4">Pertemuan</th>
+                        <th class="text-secondary fw-semibold">Tanggal</th>
                         <th class="text-secondary fw-semibold">Waktu</th>
                         <th class="text-secondary fw-semibold">Sekolah / Kelas</th>
                         <th class="text-secondary fw-semibold">Program</th>
                         <th class="text-secondary fw-semibold">Coach</th>
                         <th class="text-secondary fw-semibold text-center">Murid</th>
-                        <th class="text-secondary fw-semibold">Tools</th>
                         <th class="text-secondary fw-semibold">Topik / Ket.</th>
                         <th class="text-secondary fw-semibold text-center">Status</th>
                         @if($canManage)
-                        <th class="text-center text-secondary fw-semibold" style="width: 150px;">Aksi</th>
+                        <th class="text-secondary fw-semibold">Pindah Tanggal</th>
+                        <th class="text-center text-secondary fw-semibold" style="width: 130px;">Aksi</th>
                         @endif
                     </tr>
                 </thead>
@@ -404,9 +470,23 @@
                         'table-warning' => !$schedule->jalan_minggu_ini && $schedule->is_active,
                         'sched-row-inactive' => !$schedule->is_active,
                     ])>
-                        <td class="ps-4 sched-nw" data-label="Tanggal">
-                            <div class="fw-medium text-dark">{{ $schedule->session_date->format('d M Y') }}</div>
-                            <small class="text-muted">{{ $schedule->session_date->translatedFormat('l') }}</small>
+                        <td class="ps-4 sched-nw" data-label="Pertemuan">
+                            <span class="badge text-bg-light border fw-semibold">
+                                {{ $schedule->meetingLabel() }}
+                            </span>
+                        </td>
+                        {{-- Tanggal aktual sesi. Sesi yang belum bertanggal
+                             ditandai jelas supaya tidak terbaca sebagai
+                             pertemuan yang sudah lewat. --}}
+                        <td class="sched-nw" data-label="Tanggal">
+                            @if($schedule->session_date)
+                                <div class="fw-medium text-dark">{{ $schedule->session_date->format('d M Y') }}</div>
+                                <small class="text-muted">{{ $schedule->session_date->translatedFormat('l') }}</small>
+                            @else
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                    <i class="bi bi-calendar-x me-1"></i>Belum dijadwalkan
+                                </span>
+                            @endif
                         </td>
                         <td class="sched-nw" data-label="Waktu">
                             @if($schedule->start_time || $schedule->end_time)
@@ -449,14 +529,6 @@
                         <td class="text-center sched-nw" data-label="Murid">
                             {{ $schedule->student_count ?? '-' }}
                         </td>
-                        <td data-label="Tools">
-                            @if($schedule->tools_dk || $schedule->tools_rk)
-                                @if($schedule->tools_dk)<div><span class="badge bg-light text-dark border border-secondary-subtle">DK: {{ $schedule->tools_dk }}</span></div>@endif
-                                @if($schedule->tools_rk)<div><span class="badge bg-light text-dark border border-secondary-subtle">RK: {{ $schedule->tools_rk }}</span></div>@endif
-                            @else
-                                <span class="text-muted small">-</span>
-                            @endif
-                        </td>
                         <td data-label="Topik / Ket.">
                             <span class="text-muted" title="{{ $schedule->topic }} {{ $schedule->keterangan }}">
                                 {{ $schedule->topic ? Str::limit($schedule->topic, 30) : ($schedule->keterangan ? Str::limit($schedule->keterangan, 30) : '-') }}
@@ -465,23 +537,56 @@
                                 <div><span class="badge bg-warning text-dark">Tidak jalan minggu ini</span></div>
                             @endif
                         </td>
-                        {{-- Status sesi: nonaktif = tidak dihitung sebagai sesi
-                             mengajar aktif (tanpa tuntutan laporan), tetapi
-                             barisnya tetap ada dan bisa diaktifkan lagi. --}}
+                        {{-- Status pertemuan: Terjadwal / Terlaksana / Ditunda /
+                             Dibatalkan, dan Inactive bila sesinya dinonaktifkan
+                             (tidak dihitung sebagai sesi mengajar aktif). --}}
                         <td class="text-center" data-label="Status">
-                            @if($schedule->is_active)
-                                <span class="badge bg-success-subtle text-success-emphasis">
-                                    <i class="bi bi-check-circle me-1"></i>Aktif
-                                </span>
-                            @else
-                                <span class="badge bg-secondary-subtle text-secondary-emphasis">
-                                    <i class="bi bi-slash-circle me-1"></i>Nonaktif
-                                </span>
-                            @endif
+                            @php
+                                $statusStyles = [
+                                    'scheduled' => ['bg-primary-subtle text-primary-emphasis', 'bi-calendar-check', 'Terjadwal'],
+                                    'completed' => ['bg-success-subtle text-success-emphasis', 'bi-check-circle', 'Terlaksana'],
+                                    'postponed' => ['bg-warning-subtle text-warning-emphasis', 'bi-hourglass-split', 'Ditunda'],
+                                    'cancelled' => ['bg-danger-subtle text-danger-emphasis', 'bi-x-circle', 'Dibatalkan'],
+                                    'inactive'  => ['bg-secondary-subtle text-secondary-emphasis', 'bi-slash-circle', 'Inactive'],
+                                ];
+                                $style = $statusStyles[$schedule->displayStatus()] ?? $statusStyles['scheduled'];
+                            @endphp
+                            <span class="badge {{ $style[0] }}">
+                                <i class="bi {{ $style[1] }} me-1"></i>{{ $style[2] }}
+                            </span>
                         </td>
                         @if($canManage)
+                        {{-- Pindah tanggal = aksi tersendiri. Hanya tanggal yang
+                             dikirim, jadi nomor pertemuan dijamin tidak berubah
+                             dan tidak ada regenerate yang dijalankan. --}}
+                        <td data-label="Pindah Tanggal">
+                            <form method="POST" action="{{ route('admin.schedules.reschedule', $schedule) }}"
+                                  class="d-flex gap-1 align-items-center">
+                                @csrf
+                                @method('PATCH')
+                                <input type="date" name="session_date" class="form-control form-control-sm"
+                                       value="{{ $schedule->session_date?->toDateString() }}"
+                                       aria-label="Tanggal {{ $schedule->meetingLabel() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-primary" title="Simpan tanggal">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                            </form>
+                            <div class="form-text mb-0" style="font-size: .7rem;">
+                                Kosongkan untuk menandai belum dijadwalkan.
+                            </div>
+                        </td>
                         <td class="text-center">
                             <div class="d-flex justify-content-center gap-1 flex-wrap">
+                                <form method="POST" action="{{ route('admin.schedules.status', $schedule) }}">
+                                    @csrf
+                                    @method('PATCH')
+                                    <select name="status" class="form-select form-select-sm" style="min-width: 120px;"
+                                            onchange="this.form.submit()" aria-label="Status {{ $schedule->meetingLabel() }}">
+                                        @foreach(\App\Models\TeachingSchedule::STATUS_LABELS as $statusValue => $statusLabel)
+                                            <option value="{{ $statusValue }}" {{ $schedule->status === $statusValue ? 'selected' : '' }}>{{ $statusLabel }}</option>
+                                        @endforeach
+                                    </select>
+                                </form>
                                 <form method="POST" action="{{ route('admin.schedules.toggle-active', $schedule) }}">
                                     @csrf
                                     @method('PATCH')
@@ -496,11 +601,13 @@
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 <form method="POST" action="{{ route('admin.schedules.destroy', $schedule) }}"
-                                      onsubmit="return confirm('Hapus jadwal {{ $schedule->session_date->format('d/m/Y') }} — {{ $schedule->schoolClass->name ?? '' }}? Menghapus sesi berbeda dari menonaktifkannya: nomor pertemuan dan riwayatnya ikut hilang.');">
+                                      id="deleteScheduleForm{{ $schedule->id }}">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Hapus">
-                                        <i class="bi bi-trash"></i>
+                                    <button type="button"
+                                            onclick="confirmSubmitForm('deleteScheduleForm{{ $schedule->id }}', 'Hapus {{ $schedule->meetingLabel() }} — {{ $schedule->schoolClass->name ?? '' }}? Sesi yang sudah punya laporan tidak bisa dihapus; gunakan status Dibatalkan atau nonaktifkan sesinya.', 'btn-danger', 'Ya, Hapus')"
+                                            class="btn btn-sm btn-outline-danger rounded-pill px-2" title="Hapus" aria-label="Hapus sesi {{ $schedule->meetingLabel() }}">
+                                        <i class="bi bi-trash" aria-hidden="true"></i>
                                     </button>
                                 </form>
                             </div>
@@ -509,9 +616,9 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ $canManage ? 10 : 9 }}" class="text-center py-5" data-label="">
+                        <td colspan="{{ $canManage ? 11 : 9 }}" class="text-center py-5" data-label="">
                             <i class="bi bi-calendar-x fs-1 text-muted opacity-50 mb-2 d-block"></i>
-                            <h6 class="text-muted mb-0">Belum ada sesi tergenerate.{{ $canManage ? ' Buat pola jadwal lalu generate sesinya.' : '' }}</h6>
+                            <h6 class="text-muted mb-0">Belum ada sesi/pertemuan.{{ $canManage ? ' Tambah pertemuan, atau buat pola jadwal lalu generate sesinya.' : '' }}</h6>
                         </td>
                     </tr>
                 @endforelse

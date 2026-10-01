@@ -1141,7 +1141,7 @@ class ScheduleBulkTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_deleting_a_pattern_keeps_its_generated_sessions(): void
+    public function test_deleting_a_pattern_removes_its_generated_sessions(): void
     {
         $this->actingAs($this->relation)
             ->post(route('admin.schedules.bulk.store'), $this->payload([
@@ -1164,10 +1164,10 @@ class ScheduleBulkTest extends TestCase
             ])
             ->assertRedirect();
 
-        // §9: sesi yang sudah tergenerate tetap aman.
+        // Aturan final 2026-10-01: sesi hasil generate yang belum punya
+        // riwayat ikut terhapus bersama polanya (tidak ada sesi yatim).
         $this->assertSame(0, TeachingScheduleTemplate::count());
-        $this->assertSame(3, TeachingSchedule::count());
-        $this->assertSame(0, TeachingSchedule::whereNotNull('template_id')->count());
+        $this->assertSame(0, TeachingSchedule::count());
     }
 
     private function makeUser(string $role, string $slug): User

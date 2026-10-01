@@ -42,11 +42,18 @@ class MediaController extends Controller
         abort_if($absolutePath === null, 404, 'File media tidak ditemukan.');
 
         $mimeType = $this->guessMimeType($media);
+        $filename = $media->original_name ?? basename($media->path);
+
+        // Unduh = route & otorisasi yang SAMA, hanya berbeda cara penyajian:
+        // `?download=1` memaksa attachment. Dipakai tombol Download pada foto
+        // dan video di halaman detail laporan — file privat tetap dilayani di
+        // sini, tidak pernah dipindah ke public.
+        $disposition = request()->boolean('download') ? 'attachment' : 'inline';
 
         // Stream the file to avoid loading large videos into memory
         return response()->file($absolutePath, [
             'Content-Type'        => $mimeType,
-            'Content-Disposition' => 'inline; filename="' . ($media->original_name ?? basename($media->path)) . '"',
+            'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
             'Cache-Control'       => 'private, max-age=3600',
         ]);
     }

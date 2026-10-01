@@ -4,7 +4,11 @@
 @section('content')
 <div class="container py-4" style="max-width: 800px;">
     <div class="mb-4">
-        <h4 class="mb-1 fw-bold"><i class="bi bi-pencil-square text-primary me-2"></i> Submit Laporan Kelas</h4>
+                    <x-breadcrumb :items="[
+                ['label' => 'Laporan Saya', 'url' => route('coach.reports.index')],
+                ['label' => 'Submit Laporan'],
+            ]" />
+<h1 class="page-title">Submit Laporan Kelas</h1>
         <p class="text-muted small">Isi formulir di bawah ini untuk melaporkan aktivitas kelas yang telah selesai.</p>
     </div>
 
@@ -55,6 +59,11 @@
                 <div class="col-md-6">
                     <label class="form-label fw-semibold text-secondary small">Tanggal Kegiatan <span class="text-danger">*</span></label>
                     <input type="date" name="report_date" class="form-control bg-light" value="{{ old('report_date', date('Y-m-d')) }}" required>
+                    <div class="form-text small mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Satu pertemuan hanya punya <strong>satu</strong> laporan. Bila coach lain pada sesi
+                        yang sama sudah membuatnya, laporan kedua tidak bisa dikirim.
+                    </div>
                 </div>
             </div>
         </div>

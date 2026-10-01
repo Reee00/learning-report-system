@@ -1,13 +1,23 @@
 # LRS QA AUDIT REPORT
 
-**Audit Date:** 2026-09-11  
-**Auditor:** Senior QA Engineer (Code Inspection + Database Inspection + Automated Test + Browser Audit)  
-**System:** Learning Report System v1.0  
-**Codebase Commit:** Active development branch  
+**Audit Date:** 2026-09-11
+**Auditor:** Senior QA Engineer (Code Inspection + Database Inspection + Automated Test + Browser Audit)
+**System:** Learning Report System v1.0
+**Codebase Commit:** Active development branch
+
+> ## Status diperbarui: 2026-09-28
+>
+> **Sinkronisasi 2026-09-29:** perubahan kode 2026-09-29 (authorization coach pada unduhan laporan, kolom materi di riwayat laporan, halaman detail coach, tautan "Lihat Video" di PDF, unduhan foto/video terotorisasi, Accident Notes sebagai menu pribadi coach) tercatat pada baris **Status** di tabel modul dan pada [Test Results](#test-results). Tidak ada migrasi baru.
+>
+> Laporan ini adalah **hasil audit pada 2026-09-11**. Isi temuan dan skornya dipertahankan sebagai catatan sejarah; kolom **Status** di setiap tabel sudah diperbarui agar mencerminkan kondisi kode saat ini.
+>
+> Ringkasan perubahan status: **2 HIGH selesai**, **5 dari 6 MEDIUM selesai**, **5 dari 8 LOW selesai**. Satu temuan LOW (L-005) sudah tidak relevan.
+>
+> **Redaksi keamanan (2026-09-28):** nilai kredensial Cloudinary yang sebelumnya tertulis apa adanya di dokumen ini sudah diganti placeholder. **CLOSED 2026-09-28** — kredensial lama sudah dihapus/diinvalidasi di sisi penyedia, sehingga nilai yang tersisa di riwayat git tidak lagi dapat dipakai. Lihat [12_KEAMANAN_PEMELIHARAAN_PENGEMBANGAN.md](../12_KEAMANAN_PEMELIHARAAN_PENGEMBANGAN.md).
 
 ---
 
-## Overall Status
+## Overall Status (per 2026-09-11)
 
 ### ⚠️ PASS WITH ISSUES
 
@@ -26,8 +36,8 @@ Learning Report System adalah aplikasi Laravel MVC yang mengelola laporan coach,
 - Media storage menggunakan private disk dengan authorized serving
 - 114 automated tests mencakup role isolation, cross-school security, media, dan end-to-end flow
 
-**Kelemahan:**
-- Credentials Cloudinary terekspos di `.env` yang di-commit
+**Kelemahan (kondisi 2026-09-11; seluruhnya sudah ditutup per 2026-09-28 — lihat [Remaining Issues](#remaining-issues-per-2026-09-28)):**
+- Credentials Cloudinary tertulis plain text di dokumentasi QA yang terlacak git (`.env` sendiri tidak terlacak) → **CLOSED 2026-09-28** (nilai di-redaksi; kredensial lama dihapus/diinvalidasi di penyedia)
 - Finance role melihat tombol PDF Export padahal hanya memiliki capability CSV
 - Dashboard controller tidak menerapkan school scope untuk non-SuperAdmin
 - Seeder tidak menyertakan Teacher School role
@@ -35,26 +45,28 @@ Learning Report System adalah aplikasi Laravel MVC yang mengelola laporan coach,
 
 ---
 
-## Score
+## Score (per 2026-09-11)
 
 | Area | Score | Keterangan |
 |------|-------|------------|
 | **Functional** | 8.5/10 | Core workflow lengkap, minor issue pada Finance PDF button |
-| **Security** | 7.5/10 | Authorization solid, tapi credential exposure di .env |
+| **Security** | 7.5/10 | Authorization solid, tapi credential exposure di dokumentasi QA |
 | **Data Integrity** | 8.5/10 | FK constraints dan cascade tepat, `report_attendances` tidak punya unique constraint |
 | **UI/UX** | 8.0/10 | Layout premium, responsive bagus, beberapa minor spacing issue |
 | **Responsive** | 8.0/10 | Mobile sidebar, table responsive, minor overflow di viewport kecil |
 | **Regression** | 9.5/10 | 114/114 tests pass, semua fitur existing stabil |
 | **Overall** | **8.3/10** | Sistem siap dengan perbaikan HIGH dan MEDIUM items |
 
+> Skor di atas menggambarkan kondisi **2026-09-11** dan tidak dihitung ulang pada sinkronisasi 2026-09-28. Angka test (114) juga angka historis — lihat bagian [Test Results](#test-results) untuk kondisi terkini.
+
 ---
 
 ## HIGH
 
-| ID | Module | Finding | Reproduction | Impact | Recommendation | Status |
-|----|--------|---------|-------------|--------|----------------|--------|
-| H-001 | Security / Config | **Cloudinary credentials committed to `.env`** — API key `824718461724624` dan secret terekspos plain text di `.env` line 66-68 | Buka `.env` line 66-68 | Credential leak; siapa pun dengan akses repo dapat menyalahgunakan Cloudinary account | Hapus credential dari `.env`, tambahkan ke `.env.example` sebagai placeholder, rotasi API key/secret di Cloudinary dashboard | OPEN |
-| H-002 | Dashboard / Authorization | **DashboardController tidak menerapkan school scope** — `Report::count()`, `Report::where('status', ...)->count()` mengambil data SEMUA sekolah tanpa memfilter berdasarkan accessible schools. Jika role selain SuperAdmin mendapat akses dashboard, statistik akan mencakup sekolah yang bukan scope-nya | Code inspection: `DashboardController.php` line 13-20 — semua query tanpa scope filter. Saat ini hanya SuperAdmin dan SPV Coach yang memiliki `dashboard.view`, tapi Relation bisa mengakses via direct URL `/admin/dashboard` karena SuperAdmin wildcard | Data leakage risk jika non-global role mendapat akses dashboard; statistik tidak akurat per-school scope | Tambahkan school scope filter di DashboardController menggunakan `AuthorizationService::accessibleSchoolIds()` | OPEN |
+| ID | Module | Finding | Impact | Recommendation | Status |
+|----|--------|---------|--------|----------------|--------|
+| H-001 | Security / Config | **Cloudinary credentials terekspos di dokumentasi** — API key dan secret Cloudinary tertulis plain text di `docs/qa/HIGH-PRIORITY.md`. Nilai asli di-redaksi dari dokumen ini. (Verifikasi 2026-09-28: `.env` sendiri **tidak pernah** terlacak git.) | Credential leak; siapa pun dengan akses repo dapat menyalahgunakan akun Cloudinary | Hapus credential, pakai placeholder di `.env.example`, **rotasi key/secret di dashboard penyedia** | **CLOSED (2026-09-28)** — integrasi Cloudinary dihapus penuh dari kode (2026-09-11); kredensial lama sudah **dihapus/diinvalidasi** di sisi penyedia, sehingga nilai di riwayat git tidak lagi dapat dipakai. |
+| H-002 | Dashboard / Authorization | **DashboardController tidak menerapkan school scope** — semua query statistik mengambil data SEMUA sekolah tanpa memfilter `accessibleSchoolIds()` | Data leakage risk bila peran non-global diberi akses dashboard; statistik tidak akurat per scope | Tambahkan school scope filter memakai `AuthorizationService::accessibleSchoolIds()` | **RESOLVED** — `DashboardController::index()` kini membatasi `reportQuery`, `schoolQuery`, dan `pendingReports`. Sisa: `total_coaches` masih global. |
 
 ---
 
@@ -62,12 +74,12 @@ Learning Report System adalah aplikasi Laravel MVC yang mengelola laporan coach,
 
 | ID | Module | Finding | Impact | Recommendation | Status |
 |----|--------|---------|--------|----------------|--------|
-| M-001 | Attendance / Finance | **Finance melihat tombol "Unduh PDF" padahal hanya memiliki `attendance.export_csv`** — Di `attendance/index.blade.php` line 8-9, `$canExport` bernilai true jika punya `attendance.export` ATAU `attendance.export_csv`. Tombol PDF dan CSV ditampilkan keduanya. Backend di `AttendanceController::export()` mengecek `attendance.export` untuk PDF, tapi Finance hanya punya `attendance.export_csv`. Klik PDF → PDF tetap dihasilkan karena controller hanya mengecek `export OR export_csv` tanpa membedakan format. | Finance bisa download PDF padahal seharusnya hanya CSV berdasarkan permission design | Pisahkan tombol: tampilkan CSV jika `export_csv`, PDF jika `export`. Di controller, enforce `attendance.export` untuk `format=pdf` | OPEN |
-| M-002 | Seeder / Testing | **DatabaseSeeder tidak menyertakan Teacher School role** — Seeder mencakup SuperAdmin, Relation, SPV Coach, Coach, School PIC, Finance — tapi tidak Teacher School. Developer/QA tidak bisa menguji role ini tanpa manual insert | Testing coverage tidak lengkap untuk Teacher School role | Tambahkan user Teacher School di seeder dengan plotting sekolah | OPEN |
-| M-003 | Attendance Export | **Export `get()` memuat seluruh dataset ke memory** — `AttendanceExportService::getMatrixData()` line 12 menggunakan `$query->get()` yang memuat SEMUA record ke memory sekaligus. Untuk dataset besar (banyak sekolah, kelas, siswa × rentang tanggal panjang), ini bisa menyebabkan memory exhaustion | Server crash pada export data besar; PHP memory limit exceeded | Gunakan chunking (`chunk()` atau `cursor()`) atau batasi rentang tanggal maksimal | OPEN |
-| M-004 | Report / State | **Report `photo_path` column masih ada di migration dan model** — `reports` table masih memiliki kolom `photo_path` (migration line 18) dan `Report::$fillable` masih mencantumkan `photo_path`. Kolom ini tidak digunakan karena media sudah menggunakan `report_media` table | Confusion bagi developer, potensi data inconsistency jika ada code lama yang menulis ke kolom ini | Buat migration untuk drop kolom `photo_path`; hapus dari `$fillable` | OPEN |
-| M-005 | Attendance / Data | **`report_attendances` tidak memiliki unique constraint `(report_id, student_id)`** — Tidak ada yang mencegah duplikat attendance record untuk student yang sama dalam satu report di level database. `syncAttendance()` melakukan delete+insert yang aman, tapi direct DB manipulation bisa menyebabkan duplikat | Potensi data corruption jika attendance disinkronkan dari multiple concurrent requests | Tambahkan unique index pada `(report_id, student_id)` | OPEN |
-| M-006 | Coach Report / Validation | **Coach bisa submit report tanpa class_id validation saat update** — `Coach\ReportController::update()` line 197 tidak memvalidasi `class_id` — yang berarti class_id dari report original dipertahankan. Ini secara desain correct (class tidak berubah saat edit), tapi jika class_id di report sudah bermasalah (orphan), tidak ada re-validation | Potential inconsistency jika data rusak sebelumnya | Tambahkan assertion bahwa `$report->class_id` masih valid dan coach masih assigned | OPEN |
+| M-001 | Attendance / Finance | **Finance melihat tombol "Unduh PDF" padahal hanya punya `attendance.export_csv`** — UI menampilkan tombol PDF dan CSV sekaligus | Finance bisa mengunduh PDF di luar desain permission | Pisahkan tombol; di controller enforce `attendance.export` untuk PDF/Excel | **SUPERSEDED (2026-10-01)** — pemisahan tombol tetap berlaku dan `AttendanceController::export()` tetap menolak 403 untuk `format=excel/xlsx` dan `format=pdf` tanpa `attendance.export`. Yang berubah: review meeting LRS 2026-10-01 menetapkan Finance **memang** memerlukan CSV, Excel, dan PDF untuk pelaporannya, sehingga Finance kini memegang `attendance.export` (capability penuh) dan tombol PDF/Excel dirender untuknya. `attendance.export_csv` tidak lagi dipegang role mana pun. Lihat [modules/attendance.md](../modules/attendance.md). |
+| M-002 | Seeder / Testing | **Seeder tidak menyertakan Teacher School role** | Coverage testing tidak lengkap untuk peran ini | Tambahkan user Teacher School dengan plotting sekolah | **RESOLVED** — seeder kini membuat `teacher@lrs.com` (Dewi Larasati) beserta plot sekolahnya. Lihat [development/seeder.md](../development/seeder.md). |
+| M-003 | Attendance Export | **Export `get()` memuat seluruh dataset ke memory** | Server crash pada export data besar | Gunakan chunking atau batasi rentang tanggal | **RESOLVED** — matriks dibangun dengan `chunk(1000)`. |
+| M-004 | Report / State | **Kolom `photo_path` masih ada di migration dan `$fillable`** padahal media sudah memakai `report_media` | Kebingungan developer; potensi inkonsistensi data | Buat migrasi untuk drop kolom; hapus dari `$fillable` | **RESOLVED** — migrasi `2026_09_11_000005_drop_photo_path_from_reports`. |
+| M-005 | Attendance / Data | **`report_attendances` tanpa unique constraint `(report_id, student_id)`** | Potensi duplikat lewat manipulasi DB langsung atau request bersamaan | Tambahkan unique index | **RESOLVED** — migrasi `2026_09_11_000006_add_unique_report_student_to_report_attendances`. |
+| M-006 | Coach Report / Validation | **Tidak ada re-validasi `class_id` saat update laporan** | Potensi inkonsistensi bila data sudah rusak lebih dulu | Pastikan `class_id` masih valid dan coach masih ditugaskan | **RESOLVED** — `assignedClassOrFail($report->class_id, $report->report_date)` dipanggil sebelum update, termasuk memeriksa penugasan sementara yang terikat tanggal sesi. |
 
 ---
 
@@ -75,43 +87,44 @@ Learning Report System adalah aplikasi Laravel MVC yang mengelola laporan coach,
 
 | ID | Module | Finding | Impact | Recommendation | Status |
 |----|--------|---------|--------|----------------|--------|
-| L-001 | UI / Dashboard | **Dashboard title hardcodes role check** — `dashboard.blade.php` line 2: `auth()->user()->role === 'superadmin'` — menggunakan string literal alih-alih `User::ROLE_SUPERADMIN` constant | Maintenance burden jika role name berubah | Gunakan `User::ROLE_SUPERADMIN` constant | OPEN |
-| L-002 | UI / Attendance | **Empty state menggunakan external image CDN** — `attendance/index.blade.php` line 199: `src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png"` — bergantung pada CDN eksternal | Jika CDN down, empty state kehilangan icon | Gunakan Bootstrap Icon atau inline SVG | OPEN |
-| L-003 | UI / Spacing | **Report show view `media()` vs `photos`/`videos` inconsistent loading** — `Report::show()` di `AdminReportController` line 65 memuat `media` relation, tapi view mengakses `$report->photos` dan `$report->videos` yang merupakan filtered relations terpisah — ini menyebabkan 2 extra queries | Minor N+1 pada halaman detail report | Load `media` sekali, filter di view dengan `$report->media->where('type', 'photo')` | OPEN |
-| L-004 | Code / Legacy | **`CloudinaryHelper.php` masih ada di codebase** — File helper dengan raw cURL calls ke Cloudinary API masih ada, meskipun tidak digunakan oleh code path manapun | Code debt, bisa membingungkan developer baru | Pindahkan ke `_backup_unused` atau hapus sepenuhnya | OPEN |
-| L-005 | Docker | **Dockerfile PHP 8.3 vs Composer require PHP 8.4** — `Dockerfile` line 1 menggunakan PHP 8.3, tapi `composer.json` require `^8.4` | Deployment gagal jika menggunakan Docker tanpa update | Update Dockerfile ke PHP 8.4 | N/A — deployment bukan Docker; Dockerfile dihapus 2026-09-11 |
-| L-006 | UI / Report Download | **Download report menggunakan `Content-Disposition: inline`** — Report download di `AdminReportController::download()` dan `CoachReportController::download()` menggunakan `inline` — browser menampilkan HTML langsung alih-alih mendownload | User mungkin mengharapkan file terunduh langsung (Save As), bukan tampil di browser | Pertimbangkan `attachment` atau tambahkan tombol Print di halaman inline | OPEN |
-| L-007 | Seeder / Data | **Seeder tidak membuat School B** — Hanya satu sekolah (SD Harapan Bangsa) di seeder. Tidak ada data untuk menguji cross-school isolation secara manual tanpa setup tambahan | Manual testing cross-school memerlukan setup manual | Tambahkan School B dengan PIC B di seeder | OPEN |
-| L-008 | UI / Form | **Password confirmation field di User Management modal** — Form create user membutuhkan `password_confirmation`, tapi label/placeholder mungkin tidak jelas bagi non-IT user bahwa harus mengetik ulang password yang sama | UX friction untuk user non-teknis | Tambahkan helper text "Ketik ulang password yang sama" | OPEN |
+| L-001 | UI / Dashboard | **Judul dashboard memakai string literal** `'superadmin'` alih-alih konstanta | Beban pemeliharaan bila nama peran berubah | Gunakan `User::ROLE_SUPERADMIN` | **RESOLVED** — literal sudah tidak ada di `admin/dashboard.blade.php`. |
+| L-002 | UI / Attendance | **Empty state memakai gambar CDN eksternal** (`cdn-icons-png.flaticon.com`) | Bila CDN mati, ikon empty state hilang | Gunakan Bootstrap Icon atau inline SVG | **RESOLVED (2026-09-28)** — gambar eksternal diganti Bootstrap Icons di **8 view**: `admin/master/classes`, `coaches`, `coach_show`, `programs`, `schools`, `admin/users/index`, `coach/reports/index`, `school_pic/dashboard`. Ukuran 64px, opacity, spacing, dan perataan dipertahankan. `git grep` untuk URL gambar eksternal di `resources/views` → 0 hasil. |
+| L-003 | UI / Report Show | **`media()` vs `photos`/`videos` tidak konsisten** — memuat relasi terpisah sehingga menambah query | N+1 minor pada halaman detail | Muat `media` sekali lalu filter di view | **RESOLVED** — `show()` memuat `['coach','school','schoolClass','attendances.student','media','attendanceMedia']` dalam satu pemanggilan. |
+| L-004 | Code / Legacy | **`CloudinaryHelper.php` masih ada** meski tidak dipakai | Code debt | Hapus atau pindahkan | **RESOLVED** — berkas tidak lagi ada di `app/`. |
+| L-005 | Docker | **Dockerfile PHP 8.3 vs Composer `^8.4`** | Deployment gagal bila memakai Docker | Update Dockerfile | **N/A** — `Dockerfile` dihapus (2026-09-11); deployment bukan berbasis Docker. |
+| L-006 | UI / Report Download | **Download laporan memakai `Content-Disposition: inline`** | Tidak ada — ini alur pratinjau/review yang disengaja | — | **ACCEPTED / BY DESIGN (2026-09-28)** — laporan disajikan sebagai halaman HTML pratinjau (`Content-Type: text/html`) di `Admin\ReportController`, `Coach\ReportController`, dan `MediaController`; pengguna melihat & me-review lebih dulu lalu mencetak (Print / Save as PDF). Mengubah ke `attachment` akan menghilangkan alur itu. **Bukan bug; dipertahankan.** |
+| L-007 | Seeder / Data | **Seeder hanya membuat satu sekolah** sehingga cross-school isolation sulit diuji manual | Testing manual butuh setup tambahan | Tambahkan sekolah kedua dengan PIC-nya | **RESOLVED** — seeder kini membuat 10 sekolah beserta kelas, program, murid, dan plot PIC/Teacher. |
+| L-008 | UI / Form | **Field konfirmasi password kurang jelas bagi pengguna non-teknis** | UX friction | Tambahkan helper text | **RESOLVED** — placeholder kini berbunyi "Ulangi password baru" / "Ulangi password". |
 
 ---
 
-## Fixed During Audit
+## Fixed During Audit (2026-09-11)
 
-Tidak ada bug yang diperbaiki selama audit ini. Semua finding memerlukan keputusan bisnis atau perubahan yang lebih dari sekadar safe fix.
-
-**Alasan:** Setiap finding yang ditemukan memerlukan minimal salah satu dari:
-1. Keputusan bisnis (M-001: apakah Finance memang boleh PDF?)
-2. Migration baru (M-004, M-005)
-3. Perubahan credential yang harus dilakukan di production (H-001)
+Tidak ada bug yang diperbaiki selama audit tersebut. Semua finding memerlukan keputusan bisnis atau perubahan yang lebih dari sekadar safe fix.
 
 ---
 
-## Remaining Issues
+## Remaining Issues (per 2026-09-28)
 
-### HIGH Priority (2 items)
-- **H-001:** Cloudinary credentials di `.env` — HARUS segera dirotasi
-- **H-002:** Dashboard tanpa school scope — risk rendah saat ini karena hanya SuperAdmin/SPV yang akses, tapi harus diperbaiki
+### HIGH
+Tidak ada. Keduanya selesai.
 
-### MEDIUM Priority (6 items)  
-- **M-001 – M-006:** Lihat tabel MEDIUM di atas
+**Tidak ada lagi tindakan yang menggantung di luar repositori.** Rotasi kredensial Cloudinary sudah ditutup: kredensial lama sudah dihapus/diinvalidasi di sisi penyedia (2026-09-28). Audit dan integrasi Cloudinary **CLOSED** — lihat [HIGH-PRIORITY.md](./HIGH-PRIORITY.md#h-001-cloudinary-credentials-committed-to-env).
 
-### LOW Priority (8 items)
-- **L-001 – L-008:** Lihat tabel LOW di atas
+### MEDIUM
+Tidak ada.
+
+### LOW
+Tidak ada.
+
+Semua isu LOW sudah tertutup: L-001, L-003, L-004, L-007, L-008 **RESOLVED**; L-002 **RESOLVED (2026-09-28)**; L-005 **N/A** (Docker dihapus); L-006 **ACCEPTED / BY DESIGN** (pratinjau laporan, bukan bug).
+
+### Sisa kecil dari H-002
+`total_coaches` pada dashboard masih dihitung global. Dampak nihil saat ini (hanya peran global yang punya `dashboard.view`), tetapi belum ada test yang menutupinya.
 
 ---
 
-## Tested Roles
+## Tested Roles (2026-09-11)
 
 | # | Role | Login Test | Route Test | Permission Test | School Scope Test | Notes |
 |---|------|-----------|------------|-----------------|-------------------|-------|
@@ -121,63 +134,65 @@ Tidak ada bug yang diperbaiki selama audit ini. Semua finding memerlukan keputus
 | 4 | **Coach** | ✅ PASS | ✅ PASS | ✅ Own reports + assigned classes | ✅ Assignment-based | Landing: `/coach/reports` |
 | 5 | **PIC DK School** | ✅ PASS | ✅ PASS | ✅ Plotted school + approved only | ✅ Plotted schools | Landing: `/pic/dashboard` |
 | 6 | **Teacher School** | ✅ PASS | ✅ PASS | ✅ Attendance + reports (approved) | ✅ Plotted schools | Landing: `/attendance` |
-| 7 | **Finance** | ✅ PASS | ✅ PASS | ✅ Attendance + CSV export only | ✅ Plotted schools | Landing: `/attendance` |
+| 7 | **Finance** | ✅ PASS | ✅ PASS | ✅ Attendance + CSV export only | ✅ All-school (dari role) | Landing: `/attendance` |
+
+> Catatan koreksi: baris Finance pada laporan asli menyebut scope "Plotted schools". Itu **tidak tepat** — Finance ber-scope **all-school** yang berasal dari perannya, bukan dari plot sekolah, dan tidak diplot di seeder. Lihat [reference/permissions.md](../reference/permissions.md).
 
 ---
 
-## Tested Modules
+## Tested Modules (2026-09-11)
 
-| Module | Status | Test Coverage | Notes |
-|--------|--------|---------------|-------|
-| Login/Logout | ✅ PASS | Automated + Code | Session regeneration, CSRF, redirect by role |
-| Dashboard | ⚠️ PASS WITH ISSUES | Code | H-002: no school scope |
-| School Management | ✅ PASS | Automated + Code | CRUD + cascade protection |
-| Class Management | ✅ PASS | Automated + Code | CRUD + cascade protection |
-| Program Management | ✅ PASS | Code | CRUD + class association |
-| Student Management | ✅ PASS | Automated + Code | CRUD + import + template |
-| Coach Management | ✅ PASS | Automated + Code | CRUD + assignment/unassignment |
-| User Management | ✅ PASS | Automated + Code | All 7 roles, school plotting |
-| Coach Report Create | ✅ PASS | Automated + Code | Validation, transaction, attendance |
-| Coach Report Edit | ✅ PASS | Automated + Code | Status check, media delete, resubmit |
-| Coach Report Submit | ✅ PASS | Automated + Code | Status → submitted |
-| Report Review | ✅ PASS | Automated + Code | Relation/SuperAdmin only |
-| Report Approve | ✅ PASS | Automated + Code | Status check, approved_by, approved_at |
-| Report Reject | ✅ PASS | Automated + Code | admin_notes required, status → rejected |
-| Report Resubmit | ✅ PASS | Automated + Code | Edit → resubmit clears admin_notes |
-| Attendance View | ✅ PASS | Automated + Code | Scope per role, filtering |
-| Attendance Export | ⚠️ PASS WITH ISSUES | Automated + Code | M-001, M-003 |
-| Report Download | ✅ PASS | Automated + Code | Approved only, school scope |
-| Media Upload | ✅ PASS | Automated + Code | Photo/video, size limits |
-| Media View | ✅ PASS | Automated + Code | Authorized serving, role-based |
-| Media Delete | ✅ PASS | Automated + Code | Disk cleanup, transaction safety |
-| Accident Notes | ✅ PASS | Code | Displayed in report view, no separate module |
+| Module | Status | Notes |
+|--------|--------|-------|
+| Login/Logout | ✅ PASS | Session regeneration, CSRF, redirect by role |
+| Dashboard | ⚠️ → ✅ | H-002 sudah diperbaiki 2026-09-28 |
+| School Management | ✅ PASS | CRUD + cascade protection |
+| Class Management | ✅ PASS | CRUD + cascade protection |
+| Program Management | ✅ PASS | CRUD + class association |
+| Student Management | ✅ PASS | CRUD + import + template |
+| Coach Management | ✅ PASS | CRUD + assignment/unassignment |
+| User Management | ✅ PASS | All 7 roles, school plotting |
+| Coach Report Create | ✅ PASS | Validation, transaction, attendance |
+| Coach Report Edit | ✅ PASS | Status check, media delete, resubmit |
+| Coach Report Submit | ✅ PASS | Status → submitted |
+| Report Review | ✅ PASS | Relation/SuperAdmin only |
+| Report Approve | ✅ PASS | Status check, approved_by, approved_at |
+| Report Reject | ✅ PASS | admin_notes required, status → rejected |
+| Report Resubmit | ✅ PASS | Edit → resubmit clears admin_notes |
+| Attendance View | ✅ PASS | Scope per role, filtering |
+| Attendance Export | ⚠️ → ✅ | M-001 dan M-003 sudah diperbaiki |
+| Report Download | ✅ PASS | Approved only, school scope; cabang coach memakai `canAccessReport()` (per sesi) sejak 2026-09-29 — unauthorized coach → 403 |
+| Media Upload | ✅ PASS | Photo/video, size limits |
+| Media View | ✅ PASS | Authorized serving, role-based; unduhan lewat `?download=1` pada rute yang sama |
+| Media Delete | ✅ PASS | Disk cleanup, transaction safety |
+| Coach Report Detail | ✅ PASS | `coach.reports.show`, materi dari `reports.lesson_material`, batas per sesi |
+| Accident Notes | ✅ PASS | Menu pribadi coach (`coach.accident-notes.index`), bukan notification center; catatan milik coach sendiri + tautan laporan sumber |
+
+**Modul yang belum ada pada saat audit dan kini tersedia:** Jadwal Mengajar (pola + sesi), PWA, Web Push, Activity Log, School Workspace. Lihat [docs/README.md](../README.md).
 
 ---
 
 ## Test Results
 
-### Automated Tests
+### Kondisi saat audit (2026-09-11)
 ```
 Tests:    114 passed (423 assertions)
 Duration: 21.25s
 ```
 
-**Test suites executed:**
-- `AuthorizationServiceTest` — 5 tests ✅
-- `CoachReportAtomicityTest` — Transaction safety ✅
-- `CoachReportAuthorizationTest` — Role enforcement ✅
-- `CoachReportDownloadTest` — Download access control ✅
-- `CoachStudentManagementTest` — Student CRUD per role ✅
-- `CrossSchoolSecurityTest` — 8 tests, school isolation ✅
-- `EndToEndFlowTest` — Full lifecycle ✅
-- `MasterDataIntegrityTest` — 11 tests, cascade protection ✅
-- `MediaStorageTest` — 13 tests, upload/delete/auth ✅
-- `RoleIsolationTest` — 15 tests, all 7 roles ✅
-- `RoleRedirectTest` — Login landing pages ✅
-- `SchoolManagementTest` — 6 tests ✅
-- `StudentManagementTest` — 4 tests ✅
+### Kondisi terkini (dijalankan ulang 2026-09-29)
+```
+Tests:    7 skipped, 503 passed (2538 assertions)
+Duration: 66.42s
+```
 
-### Security Test Results (Code Inspection)
+Perubahan 2026-09-29 yang diverifikasi suite ini: penutupan blocker authorization coach di `admin.reports.download`, kolom "Materi yang Dipelajari" di riwayat laporan coach, halaman detail laporan coach, tautan "Lihat Video" di PDF, unduhan foto/video terotorisasi, dan pemindahan Accident Notes ke menu pribadi coach. **Tidak ada migrasi baru.** Tidak ada test yang gagal.
+
+Satu-satunya sumber skip adalah `AttendanceMysqlOnlyFullGroupByTest`, yang memerlukan variabel `TEST_MYSQL_*`. Suite memakai SQLite `:memory:` + `QUEUE_CONNECTION=sync`.
+
+Test JavaScript terpisah: `npm run test:pwa` → 37 pemeriksaan service worker.
+
+### Security Test Results (Code Inspection, 2026-09-11)
 
 | Test | Result |
 |------|--------|
@@ -195,7 +210,7 @@ Duration: 21.25s
 | CSRF on state-changing requests | ✅ PROTECTED — Laravel default CSRF middleware |
 | SQL injection | ✅ PROTECTED — Eloquent parameterized queries |
 
-### Data Integrity Results (Code Inspection)
+### Data Integrity Results (Code Inspection, 2026-09-11)
 
 | Check | Result |
 |-------|--------|
@@ -205,27 +220,29 @@ Duration: 21.25s
 | Coach assignment validation | ✅ `assignedClassOrFail()` checks backend |
 | Student-class relationship | ✅ `assertAttendanceBelongsToClass()` validates |
 | Transaction atomicity | ✅ Report+media+attendance in DB::transaction |
-| Duplicate attendance | ⚠️ No unique constraint (M-005) |
+| Duplicate attendance | ✅ Fixed — unique index `(report_id, student_id)` |
 
 ---
 
 ## Final Recommendation
 
 ### Prioritas 1: SEGERA (HIGH)
-1. **H-001:** Rotasi Cloudinary credentials, hapus dari `.env` committed
-2. **H-002:** Tambahkan school scope di DashboardController
+1. ~~H-001: Rotasi Cloudinary credentials~~ → **Selesai 2026-09-28** — kredensial lama sudah dihapus/diinvalidasi di sisi penyedia; integrasi Cloudinary CLOSED.
+2. ~~H-002: Tambahkan school scope di DashboardController~~ → **Selesai**.
 
 ### Prioritas 2: SPRINT BERIKUTNYA (MEDIUM)
-3. **M-001:** Pisahkan tombol export CSV/PDF berdasarkan permission
-4. **M-005:** Tambahkan unique index `(report_id, student_id)` di `report_attendances`
-5. **M-002:** Tambahkan Teacher School di seeder
-6. **M-003:** Implementasi chunking pada attendance export
-7. **M-004:** Drop kolom `photo_path` dari reports
-8. **M-006:** Tambahkan re-validation class assignment saat report update
+3. ~~M-001: Pisahkan tombol export CSV/PDF~~ → **Selesai**
+4. ~~M-005: Unique index `(report_id, student_id)`~~ → **Selesai**
+5. ~~M-002: Teacher School di seeder~~ → **Selesai**
+6. ~~M-003: Chunking pada attendance export~~ → **Selesai**
+7. ~~M-004: Drop kolom `photo_path`~~ → **Selesai**
+8. ~~M-006: Re-validasi class assignment saat update~~ → **Selesai**
 
 ### Prioritas 3: BACKLOG (LOW)
-9. **L-001 – L-008:** Cosmetic dan maintenance improvements
+9. ~~L-002: ganti gambar CDN eksternal pada empty state dengan ikon lokal/inline~~ → **Selesai 2026-09-28** (8 view, Bootstrap Icons)
+10. ~~L-006: putuskan apakah unduhan laporan sebaiknya `attachment`~~ → **Diputuskan 2026-09-28: `inline` DIPERTAHANKAN** (pratinjau/review laporan, bukan bug). Status: ACCEPTED / BY DESIGN.
+11. **Sisa H-002** — scope-kan `total_coaches` dan tambahkan test dashboard ber-scope.
 
 ---
 
-*Report generated from code inspection, database schema analysis, and 114 automated tests.*
+*Laporan asli dihasilkan dari code inspection, analisis schema database, dan 114 automated test (2026-09-11). Status diperbarui 2026-09-28 terhadap kode terkini.*

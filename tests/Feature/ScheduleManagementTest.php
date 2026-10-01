@@ -130,7 +130,7 @@ class ScheduleManagementTest extends TestCase
     {
         $this->actingAs($this->relation)
             ->post(route('admin.schedules.store'), $this->validPayload())
-            ->assertRedirectToRoute('admin.schedules.index');
+            ->assertRedirectToRoute('admin.schedules.index', ['view' => 'sesi']);
 
         $schedule = TeachingSchedule::query()->firstOrFail();
 
@@ -172,7 +172,7 @@ class ScheduleManagementTest extends TestCase
                 'topic' => 'Topik Baru',
                 'additional_coaches' => [],
             ]))
-            ->assertRedirectToRoute('admin.schedules.index');
+            ->assertRedirectToRoute('admin.schedules.index', ['view' => 'sesi']);
 
         $schedule->refresh();
         $this->assertSame('Topik Baru', $schedule->topic);
@@ -199,7 +199,7 @@ class ScheduleManagementTest extends TestCase
         // Update tanpa mengubah slot waktu tidak boleh dianggap duplikat.
         $this->actingAs($this->relation)
             ->put(route('admin.schedules.update', $schedule), $this->validPayload())
-            ->assertRedirectToRoute('admin.schedules.index')
+            ->assertRedirectToRoute('admin.schedules.index', ['view' => 'sesi'])
             ->assertSessionHas('success');
     }
 
@@ -354,7 +354,7 @@ class ScheduleManagementTest extends TestCase
                 'end_time' => '11:00',
                 'additional_coaches' => [],
             ]))
-            ->assertRedirectToRoute('admin.schedules.index');
+            ->assertRedirectToRoute('admin.schedules.index', ['view' => 'sesi']);
 
         $this->assertSame(2, TeachingSchedule::count());
     }
@@ -400,7 +400,7 @@ class ScheduleManagementTest extends TestCase
     {
         $this->actingAs($this->picA)
             ->post(route('admin.schedules.store'), $this->validPayload())
-            ->assertRedirectToRoute('admin.schedules.index');
+            ->assertRedirectToRoute('admin.schedules.index', ['view' => 'sesi']);
 
         $this->assertSame(1, TeachingSchedule::count());
     }
@@ -445,7 +445,7 @@ class ScheduleManagementTest extends TestCase
     {
         $this->actingAs($this->superadmin)
             ->post(route('admin.schedules.store'), $this->validPayload())
-            ->assertRedirectToRoute('admin.schedules.index');
+            ->assertRedirectToRoute('admin.schedules.index', ['view' => 'sesi']);
 
         $this->assertSame(1, TeachingSchedule::count());
     }

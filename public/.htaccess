@@ -23,3 +23,25 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# ===== PWA (Phase 1) =====
+# Manifest sengaja bernama manifest.json: .webmanifest tidak dikenali Apache
+# maupun nginx secara default (dikirim sebagai application/octet-stream dan
+# browser menolak memasang aplikasi). .json sudah benar di semua web server,
+# jadi tidak ada AddType yang dibutuhkan di sini.
+
+# sw.js tidak boleh tertahan cache HTTP: update service worker harus selalu
+# terdeteksi. Manifest dan fallback offline juga selalu direvalidasi.
+# Catatan: nginx (Herd/produksi container) mengabaikan file ini — lihat
+# komentar di public/sw.js untuk padanan konfigurasinya.
+<IfModule mod_headers.c>
+    <Files "sw.js">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </Files>
+    <Files "manifest.json">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </Files>
+    <Files "offline.html">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </Files>
+</IfModule>

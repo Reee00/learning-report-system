@@ -8,6 +8,7 @@ use App\Models\ReportAttendance;
 use App\Models\School;
 use App\Models\SchoolClass;
 use App\Models\Student;
+use App\Models\TeachingSchedule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -180,6 +181,97 @@ class CoachReportDownloadTest extends TestCase
 
         $this->actingAs($otherCoach)
             ->get(route('coach.reports.download', $this->approvedReport))
+            ->assertForbidden();
+    }
+
+    // =====================================================================
+    // Coach scope on the ADMIN download endpoint (permanent regression)
+    //
+    // Route admin.reports.download hanya membutuhkan permission
+    // reports.download — dan coach MEMILIKI permission itu. Sebelum
+    // perbaikan, object scope-nya hanya ensureSchoolAccess(), sementara
+    // AuthorizationService::accessibleSchoolIds() mengembalikan null (global)
+    // untuk role coach: akibatnya coach bisa mengunduh laporan coach lain di
+    // sekolah mana pun. Sekarang endpoint ini memakai aturan akses laporan
+    // yang sama dengan Coach\ReportController (AuthorizationService::
+    // canAccessReport) — per SESI, bukan per sekolah.
+    // =====================================================================
+
+    public function test_coach_can_download_own_approved_report_via_admin_endpoint(): void
+    {
+        $this->actingAs($this->coach)
+            ->get(route('admin.reports.download', $this->approvedReport))
+            ->assertOk();
+    }
+
+    public function test_coach_cannot_download_another_coach_report_via_admin_endpoint(): void
+    {
+        $otherCoach = $this->makeUser(User::ROLE_COACH, null, 'other.coach@test.test');
+
+        $this->actingAs($otherCoach)
+            ->get(route('admin.reports.download', $this->approvedReport))
+            ->assertForbidden();
+    }
+
+    public function test_coach_cannot_download_another_coach_report_in_the_same_school_via_admin_endpoint(): void
+    {
+        // Coach lain di kelas yang sama, sekolah yang sama: scope sekolah saja
+        // tidak cukup — batas coach adalah SESI, bukan sekolah.
+        $sameSchoolCoach = $this->makeUser(User::ROLE_COACH, $this->schoolA, 'same.school.coach@test.test');
+        CoachClass::create(['coach_id' => $sameSchoolCoach->id, 'class_id' => $this->classA->id]);
+
+        $this->actingAs($sameSchoolCoach)
+            ->get(route('admin.reports.download', $this->approvedReport))
+            ->assertForbidden();
+    }
+
+    public function test_coach_on_the_same_teaching_session_can_download_via_admin_endpoint(): void
+    {
+        // Coach pendamping: tidak punya coach_classes, hanya terlibat lewat
+        // sesi mengajar — inilah satu-satunya bentuk berbagi yang diizinkan.
+        $session = TeachingSchedule::create([
+            'school_id'     => $this->schoolA->id,
+            'class_id'      => $this->classA->id,
+            'coach_id'      => $this->coach->id,
+            'session_date'  => '2026-08-01',
+            'start_time'    => '08:00',
+            'end_time'      => '09:30',
+            'student_count' => 10,
+            'is_active'     => true,
+        ]);
+
+        $this->approvedReport->update(['teaching_schedule_id' => $session->id]);
+
+        $additionalCoach = $this->makeUser(User::ROLE_COACH, null, 'additional.coach@test.test');
+        $session->additionalCoaches()->sync([$additionalCoach->id]);
+
+        $this->actingAs($additionalCoach)
+            ->get(route('admin.reports.download', $this->approvedReport))
+            ->assertOk();
+    }
+
+    public function test_other_roles_keep_their_access_after_the_coach_fix(): void
+    {
+        // Regresi: perbaikan khusus coach tidak boleh mempersempit role lain.
+        $this->actingAs($this->superadmin)->get(route('admin.reports.download', $this->approvedReport))->assertOk();
+        $this->actingAs($this->relation)->get(route('admin.reports.download', $this->approvedReport))->assertOk();
+        $this->actingAs($this->spvCoach)->get(route('admin.reports.download', $this->approvedReport))->assertOk();
+        $this->actingAs($this->teacher)->get(route('admin.reports.download', $this->approvedReport))->assertOk();
+        $this->actingAs($this->picA)->get(route('pic.reports.download', $this->approvedReport))->assertOk();
+
+        // Dan yang memang ditolak tetap ditolak.
+        $this->actingAs($this->finance)->get(route('admin.reports.download', $this->approvedReport))->assertForbidden();
+        $this->actingAs($this->picB)->get(route('pic.reports.download', $this->approvedReport))->assertForbidden();
+    }
+
+    public function test_coach_still_cannot_download_non_approved_report_via_admin_endpoint(): void
+    {
+        $this->actingAs($this->coach)
+            ->get(route('admin.reports.download', $this->submittedReport))
+            ->assertForbidden();
+
+        $this->actingAs($this->coach)
+            ->get(route('admin.reports.download', $this->rejectedReport))
             ->assertForbidden();
     }
 

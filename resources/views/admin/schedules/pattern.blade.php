@@ -20,10 +20,7 @@
                class="btn btn-sm btn-outline-secondary mb-2">
                 <i class="bi bi-arrow-left"></i> Kembali ke Jadwal
             </a>
-            <h4 class="mb-1 fw-bold">
-                <i class="bi bi-diagram-3 text-primary me-2"></i>
-                {{ $pattern['day_label'] }} — {{ $school->name ?? 'Sekolah' }}
-            </h4>
+            <h1 class="page-title">{{ $pattern['day_label'] }} — {{ $school->name ?? 'Sekolah' }}</h1>
             <p class="text-muted small mb-0">
                 Pola jadwal berulang. Pertemuan yang sudah tergenerate tetap tersimpan
                 walaupun pola ini dihapus.
@@ -49,7 +46,7 @@
                     </button>
                 </form>
                 <form method="POST" action="{{ route('admin.schedules.pattern.destroy') }}"
-                      onsubmit="return confirm('Hapus pola ini? Sesi yang sudah tergenerate TETAP tersimpan sebagai jadwal biasa.');">
+                      id="deletePatternForm">
                     @csrf
                     @method('DELETE')
                     <input type="hidden" name="day" value="{{ $pattern['day_of_week'] }}">
@@ -57,26 +54,15 @@
                     <input type="hidden" name="start_date" value="{{ $startDate?->toDateString() }}">
                     <input type="hidden" name="label"
                            value="{{ $pattern['day_label'] }} — {{ $school->name ?? 'Sekolah' }}">
-                    <button type="submit" class="btn btn-outline-danger d-flex align-items-center gap-2">
-                        <i class="bi bi-trash"></i> Hapus Pola
+                    <button type="button"
+                            onclick="confirmSubmitForm('deletePatternForm', 'Hapus pola ini beserta pertemuan hasil generate-nya? Pola yang pertemuannya sudah punya laporan/absensi tidak bisa dihapus.', 'btn-danger', 'Ya, Hapus')"
+                            class="btn btn-outline-danger d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-trash" aria-hidden="true"></i> Hapus Pola
                     </button>
                 </form>
             @endif
         </div>
     </div>
-
-    @if (session('success'))
-        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-    @if (session('error'))
-        <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
 
     {{-- ============ RINGKASAN POLA ============ --}}
     <div class="row g-3 mb-4">

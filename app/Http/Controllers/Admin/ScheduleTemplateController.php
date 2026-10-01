@@ -7,6 +7,7 @@ use App\Models\CoachClass;
 use App\Models\Program;
 use App\Models\School;
 use App\Models\SchoolClass;
+use App\Models\TeachingSchedule;
 use App\Models\TeachingScheduleTemplate;
 use App\Models\User;
 use App\Services\ActivityLogService;
@@ -14,6 +15,7 @@ use App\Services\AuthorizationService;
 use App\Services\ScheduleTemplateService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Pola jadwal per HARI + SEKOLAH (refactor 2026-09-25).
@@ -138,8 +140,14 @@ class ScheduleTemplateController extends Controller
     }
 
     /**
-     * Hapus satu pola penuh. Sesi yang sudah digenerate TETAP ADA (data bisnis
-     * aktif tidak dihapus) — hanya tautan template_id yang dilepas.
+     * Hapus satu pola penuh BESERTA sesi hasil generate-nya.
+     *
+     * Sesi hasil generate bukan riwayat historis: kalau polanya dibuang, sesi
+     * yang belum pernah dipakai ikut terhapus supaya tidak meninggalkan sesi
+     * yatim di jadwal. Bila ada SATU saja sesi yang sudah punya laporan
+     * (beserta absensi/media), seluruh penghapusan ditolak dan tidak ada apa
+     * pun yang dihapus — riwayat pembelajaran tidak boleh hilang demi
+     * merapikan konfigurasi.
      */
     public function destroyPattern(Request $request)
     {
@@ -153,21 +161,39 @@ class ScheduleTemplateController extends Controller
 
         $result = $this->templates->deletePattern($user, $day, $schoolId, $start);
 
+        if (! $result['deleted']) {
+            $blocked = $result['sessions_blocking'];
+
+            if ($blocked > 0) {
+                return back()->with('error', "Pola tidak bisa dihapus: {$blocked} pertemuan dari pola ini sudah punya laporan/absensi. "
+                    .'Riwayat pembelajaran tidak boleh ikut terhapus — selesaikan atau pindahkan pertemuan tersebut lebih dulu.');
+            }
+
+            return back()->with('error', 'Pola tidak ditemukan atau sudah tidak ada.');
+        }
+
         $this->activityLog->log(
             $user,
             'schedule.pattern_deleted',
             'teaching_schedule_template',
             null,
-            "Pola jadwal dihapus: {$label} ({$result['sessions_kept']} sesi tetap tersimpan)",
-            ['rows' => $result['rows'], 'sessions_kept' => $result['sessions_kept']],
+            "Pola jadwal dihapus: {$label} ({$result['rows']} baris, {$result['sessions_deleted']} sesi hasil generate ikut terhapus)",
+            ['rows' => $result['rows'], 'sessions_deleted' => $result['sessions_deleted']],
             $request,
         );
 
-        return back()->with('success', "Pola dihapus. {$result['sessions_kept']} sesi yang sudah dibuat tetap tersimpan sebagai jadwal biasa.");
+        $message = 'Pola dihapus.';
+
+        if ($result['sessions_deleted'] > 0) {
+            $message .= " {$result['sessions_deleted']} pertemuan hasil generate yang belum punya riwayat ikut terhapus.";
+        }
+
+        return back()->with('success', $message);
     }
 
     /**
-     * Hapus satu baris pola (satu kelas). Sesi tergenerate tetap tersimpan.
+     * Hapus satu baris pola (satu kelas) beserta sesi hasil generate-nya.
+     * Ditolak bila salah satu sesinya sudah punya riwayat (laporan/absensi).
      */
     public function destroy(Request $request, TeachingScheduleTemplate $template)
     {
@@ -175,21 +201,38 @@ class ScheduleTemplateController extends Controller
         abort_unless($this->authorization->allows($user, 'schedules.manage'), 403, 'Permission tidak mencukupi.');
         $this->assertSchoolInScope((int) $template->school_id);
 
-        $sessionCount = $template->sessions()->count();
+        $sessions = $template->sessions()->get();
+
+        $blocking = $sessions->isEmpty()
+            ? 0
+            : TeachingSchedule::whereIn('id', $sessions->pluck('id'))->withHistory()->count();
+
+        if ($blocking > 0) {
+            return back()->with('error', "Baris pola tidak bisa dihapus: {$blocking} pertemuan dari pola ini sudah punya laporan/absensi. "
+                .'Riwayat pembelajaran tidak boleh ikut terhapus.');
+        }
+
+        $sessionCount = $sessions->count();
+
+        DB::transaction(function () use ($template, $sessions): void {
+            if ($sessions->isNotEmpty()) {
+                TeachingSchedule::whereIn('id', $sessions->pluck('id'))->delete();
+            }
+
+            $template->delete();
+        });
 
         $this->activityLog->log(
             $user,
             'schedule.template_deleted',
             'teaching_schedule_template',
             $template->id,
-            "Baris pola dihapus: {$template->pattern_name} ({$sessionCount} sesi tetap tersimpan)",
-            ['pattern_name' => $template->pattern_name, 'sessions_kept' => $sessionCount],
+            "Baris pola dihapus: {$template->pattern_name} ({$sessionCount} sesi hasil generate ikut terhapus)",
+            ['pattern_name' => $template->pattern_name, 'sessions_deleted' => $sessionCount],
             $request,
         );
 
-        $template->delete();
-
-        return back()->with('success', "Baris pola dihapus. {$sessionCount} sesi yang sudah dibuat tetap tersimpan sebagai jadwal biasa.");
+        return back()->with('success', "Baris pola dihapus. {$sessionCount} pertemuan hasil generate ikut terhapus.");
     }
 
     /**

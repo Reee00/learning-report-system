@@ -15,7 +15,11 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-journal-bookmark text-primary me-2"></i> Master Program Kelas</h4>
+                        <x-breadcrumb :items="[
+                ['label' => 'Dashboard', 'url' => route('admin.dashboard')],
+                ['label' => 'Program Kelas'],
+            ]" />
+<h1 class="page-title">Master Program Kelas</h1>
             <p class="text-muted small mb-0">Kelola daftar program kelas dan siswa per sekolah.</p>
         </div>
         @if($canCreateClass)
@@ -44,12 +48,6 @@
         </div>
     </div>
 
-    @if (session('success'))
-        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show">
-            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
     @if ($errors->any())
         <div class="alert alert-danger border-0 shadow-sm alert-dismissible fade show">
             <div class="d-flex align-items-center mb-2">
@@ -140,7 +138,10 @@
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content border-0 shadow">
                                 <form method="POST" action="{{ route('admin.classes.update', $class) }}">
-                                    @csrf @method('PUT')
+                                    @csrf
+                                    <input type="hidden" name="_modal" value="edit">
+                                    <input type="hidden" name="_modal_id" value="{{ $class->id }}">
+                                    @method('PUT')
                                     <div class="modal-header bg-primary text-white border-bottom-0">
                                         <h5 class="modal-title fw-bold"><i class="bi bi-pencil me-2"></i> Edit Program Kelas</h5>
                                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -160,6 +161,14 @@
                                             <label class="form-label text-muted small fw-semibold">Nama Program Kelas <span class="text-danger">*</span></label>
                                             <input type="text" name="name" class="form-control bg-light" value="{{ $class->name }}" required placeholder="Contoh: Grade 5A, Kelas 3B">
                                         </div>
+                                        {{-- Target pertemuan kelas ini; kosong = ikut pola jadwal. --}}
+                                        <div class="mb-3">
+                                            <label class="form-label text-muted small fw-semibold">Target Pertemuan</label>
+                                            <input type="number" name="target_meetings" class="form-control bg-light"
+                                                   min="1" max="60" value="{{ old('target_meetings', $class->target_meetings) }}"
+                                                   placeholder="Contoh: 10">
+                                            <div class="form-text">Jumlah pertemuan yang direncanakan. Kosongkan bila belum ditetapkan.</div>
+                                        </div>
                                     </div>
                                     <div class="modal-footer bg-light border-top-0">
                                         <button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">Batal</button>
@@ -173,7 +182,7 @@
                 @empty
                     <tr>
                         <td colspan="{{ $hasClassActions ? 6 : 5 }}" class="text-center py-5">
-                            <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" alt="No Data" width="64" class="opacity-50 mb-3">
+                            <i class="bi bi-journal-bookmark text-muted opacity-50 mb-3 d-block lh-1" style="font-size: 4rem;" aria-hidden="true"></i>
                             <h6 class="text-muted mb-0">Belum ada program kelas.</h6>
                         </td>
                     </tr>
@@ -195,6 +204,7 @@
         <div class="modal-content border-0 shadow">
             <form method="POST" action="{{ route('admin.classes.store') }}">
                 @csrf
+                <input type="hidden" name="_modal" value="add">
                 <div class="modal-header bg-primary text-white border-bottom-0">
                     <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle me-2"></i> Tambah Program Kelas</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -215,6 +225,15 @@
                         <label class="form-label text-muted small fw-semibold">Nama Program Kelas <span class="text-danger">*</span></label>
                         <input type="text" name="name" class="form-control bg-light" value="{{ old('name') }}" required placeholder="Contoh: Grade 5A, Kelas 3B">
                     </div>
+                    {{-- Target pertemuan = jumlah sesi yang harus dimiliki kelas ini.
+                         Dipakai untuk menampilkan progres "3/10 pertemuan". Boleh
+                         dikosongkan: angkanya lalu mengikuti pola jadwal kelas. --}}
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-semibold">Target Pertemuan</label>
+                        <input type="number" name="target_meetings" class="form-control bg-light"
+                               min="1" max="60" value="{{ old('target_meetings') }}" placeholder="Contoh: 10">
+                        <div class="form-text">Jumlah pertemuan yang direncanakan. Kosongkan bila belum ditetapkan.</div>
+                    </div>
                 </div>
                 <div class="modal-footer bg-light border-top-0">
                     <button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">Batal</button>
@@ -225,4 +244,6 @@
     </div>
 </div>
 @endif
+@include('partials.modal-reopen', ['modalId' => 'editClassModal'.old('_modal_id'), 'when' => old('_modal') === 'edit'])
+@include('partials.modal-reopen', ['modalId' => 'addClassModal', 'when' => old('_modal') === 'add'])
 @endsection

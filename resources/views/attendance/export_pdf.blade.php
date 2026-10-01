@@ -17,7 +17,7 @@
 
         body {
             font-family: DejaVu Sans, Arial, sans-serif;
-            font-size: 9pt;
+            font-size: 10pt;
             color: #1a1a2e;
             background: #ffffff;
         }
@@ -29,21 +29,21 @@
             margin-bottom: 14px;
         }
         .doc-header .company {
-            font-size: 11pt;
+            font-size: 11.5pt;
             font-weight: bold;
             color: #1e3a5f;
             letter-spacing: 1px;
         }
         .doc-header .doc-title {
-            font-size: 15pt;
+            font-size: 16pt;
             font-weight: bold;
             color: #1a1a2e;
             margin-top: 2px;
         }
         .doc-header .doc-subtitle {
-            font-size: 8pt;
+            font-size: 9pt;
             color: #666;
-            margin-top: 2px;
+            margin-top: 3px;
         }
 
         /* ===== Bagian per kelas ===== */
@@ -62,8 +62,8 @@
             border: 1px solid #d0d8e8;
         }
         .class-meta td {
-            padding: 4px 10px;
-            font-size: 9pt;
+            padding: 5px 10px;
+            font-size: 10pt;
             border: 1px solid #d0d8e8;
         }
         .class-meta td.label {
@@ -74,10 +74,10 @@
         }
 
         .section-title {
-            font-size: 10pt;
+            font-size: 11pt;
             font-weight: bold;
             color: #1e3a5f;
-            margin: 12px 0 5px 0;
+            margin: 13px 0 6px 0;
         }
 
         .summary-chips {
@@ -87,9 +87,9 @@
             display: inline-block;
             border: 1px solid #d0d8e8;
             border-radius: 3px;
-            padding: 2px 8px;
+            padding: 3px 9px;
             margin-right: 6px;
-            font-size: 8.5pt;
+            font-size: 9.5pt;
         }
         .chip-hadir  { background: #e6f4ea; color: #1a7f37; }
         .chip-absen  { background: #fdecea; color: #b91c1c; }
@@ -99,7 +99,7 @@
         table.matrix {
             width: 100%;
             border-collapse: collapse;
-            font-size: 8pt;
+            font-size: 9pt;
         }
 
         table.matrix thead tr {
@@ -109,7 +109,7 @@
 
         /* dompdf mengulang thead otomatis pada pergantian halaman. */
         table.matrix thead th {
-            padding: 5px 6px;
+            padding: 6px 7px;
             text-align: center;
             font-weight: bold;
             border: 1px solid #3a5f8f;
@@ -131,7 +131,7 @@
         }
 
         table.matrix tbody td {
-            padding: 4px 6px;
+            padding: 5px 7px;
             border: 1px solid #d0d8e8;
             text-align: center;
             color: #333;
@@ -159,27 +159,27 @@
            tidak pernah di-embed ke PDF. */
         ul.media-refs {
             list-style: none;
-            font-size: 8pt;
+            font-size: 9.5pt;
             color: #444;
         }
         ul.media-refs li {
-            padding: 1px 0;
+            padding: 2px 0;
         }
 
         .footer-note {
             margin-top: 10px;
-            font-size: 7.5pt;
+            font-size: 8.5pt;
             color: #9ca3af;
             text-align: right;
             border-top: 1px solid #e5e7eb;
-            padding-top: 4px;
+            padding-top: 5px;
         }
 
         .empty-state {
             text-align: center;
             color: #777;
             margin-top: 80px;
-            font-size: 11pt;
+            font-size: 12pt;
         }
     </style>
 </head>

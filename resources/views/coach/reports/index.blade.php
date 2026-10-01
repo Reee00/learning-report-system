@@ -3,15 +3,14 @@
 
 @section('content')
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h4 class="mb-1 fw-bold"><i class="bi bi-collection text-primary me-2"></i> Laporan Saya</h4>
-            <p class="text-muted small mb-0">Kelola dan pantau status laporan yang Anda buat.</p>
-        </div>
-        <a href="{{ route('coach.reports.create') }}" class="btn btn-primary shadow-sm d-flex align-items-center gap-2">
-            <i class="bi bi-plus-lg"></i> Submit Laporan Baru
+    <x-page-header
+        title="Laporan Saya"
+        description="Kelola dan pantau status laporan yang Anda buat."
+    >
+        <a href="{{ route('coach.reports.create') }}" class="btn btn-primary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i> Submit Laporan Baru
         </a>
-    </div>
+    </x-page-header>
 
     {{-- Reminder laporan dari Relation/PIC (Meeting 2026-09 req. D) --}}
     @php
@@ -78,12 +77,11 @@
         </div>
     @endforeach
 
-    @foreach($reports as $report)
-        @include('partials.accident-notes', [
-            'notes' => $report->notes,
-            'reportId' => $report->id,
-        ])
-    @endforeach
+    {{-- Accident Notes TIDAK lagi ditampilkan di halaman ini. Catatan itu
+         sekarang punya menu sendiri di sidebar ("Accident Notes") supaya
+         "Laporan Saya" murni berisi riwayat laporan. Datanya tidak berubah:
+         tetap kolom `reports.notes` milik coach sendiri, tanpa database
+         notification, web push, atau item notification center apa pun. --}}
 
     <div class="card shadow-sm border-0">
         <div class="card-header bg-white py-3">
@@ -96,6 +94,7 @@
                         <th class="text-secondary fw-semibold">Tanggal</th>
                         <th class="text-secondary fw-semibold">Sekolah</th>
                         <th class="text-secondary fw-semibold">Kelas</th>
+                        <th class="text-secondary fw-semibold">Materi yang Dipelajari</th>
                         <th class="text-secondary fw-semibold">Status</th>
                         <th class="text-center text-secondary fw-semibold" style="width: 120px;">Aksi</th>
                     </tr>
@@ -117,6 +116,34 @@
                             <span class="badge bg-light text-dark border border-secondary-subtle">
                                 {{ $report->schoolClass->name }}
                             </span>
+                            {{-- Sesi bersama: satu laporan untuk satu sesi, jadi coach
+                                 pendamping ikut melihat laporan coach utama di sini. --}}
+                            @if($report->coach_id !== auth()->id())
+                                <div class="small text-muted mt-1">
+                                    <i class="bi bi-people me-1"></i> Dibuat oleh {{ $report->coach->name ?? 'coach lain' }}
+                                </div>
+                            @endif
+                        </td>
+                        {{-- MATERI YANG DIPELAJARI
+                             Nilainya diambil APA ADANYA dari kolom
+                             reports.lesson_material — isian field "Materi
+                             Pelajaran" pada form laporan. Tidak ada pencarian
+                             ulang ke jadwal, kelas, atau program: `topic` pada
+                             sesi TIDAK dipakai. Nomor "Pertemuan" hanya LABEL
+                             tampilan dari nomor pertemuan sesi yang sudah
+                             tertaut ke laporan ini, dan hanya dipakai bila ada.
+                             Kalau materi sudah ditulis "Pertemuan N ..." atau
+                             "Week N ..." oleh coach, labelnya tidak ditempel
+                             dua kali. --}}
+                        <td>
+                            @php
+                                $meetingNumber = $report->teachingSchedule?->meeting_number;
+                                $material = (string) $report->lesson_material;
+                                $materialLabel = ($meetingNumber && ! preg_match('/^\s*(Pertemuan|Week)\b/i', $material))
+                                    ? 'Pertemuan ' . $meetingNumber . ' — ' . $material
+                                    : $material;
+                            @endphp
+                            <div class="fw-medium text-dark">{{ $materialLabel }}</div>
                         </td>
                         <td>
                             @php
@@ -141,27 +168,42 @@
                             @endif
                         </td>
                         <td class="text-center">
-                            @if(in_array($report->status, ['draft', 'rejected']))
+                            {{-- Detail selalu tersedia: coach boleh membaca laporan
+                                 miliknya (status apa pun) dan laporan sesi tempat ia
+                                 terlibat sebagai coach pendamping. --}}
+                            <a href="{{ route('coach.reports.show', $report) }}"
+                               class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                <i class="bi bi-eye me-1"></i> Detail
+                            </a>
+                            @if($report->coach_id !== auth()->id())
+                                {{-- Laporan sesi bersama milik coach utama: boleh dilihat,
+                                     tidak boleh diubah dari akun coach pendamping. --}}
+                                @if($report->status === 'approved')
+                                    <a href="{{ route('coach.reports.download', $report) }}"
+                                       target="_blank"
+                                       class="btn btn-sm btn-outline-success rounded-pill px-3 mt-1">
+                                        <i class="bi bi-download me-1"></i> Download
+                                    </a>
+                                @endif
+                            @elseif(in_array($report->status, ['draft', 'rejected']))
                                 <a href="{{ route('coach.reports.edit', $report) }}"
-                                   class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                   class="btn btn-sm btn-outline-primary rounded-pill px-3 mt-1">
                                     <i class="bi bi-pencil me-1"></i> Edit
                                 </a>
                             @elseif($report->status === 'approved')
                                 <a href="{{ route('coach.reports.download', $report) }}"
                                    target="_blank"
                                    id="btn-download-report-{{ $report->id }}"
-                                   class="btn btn-sm btn-outline-success rounded-pill px-3">
+                                   class="btn btn-sm btn-outline-success rounded-pill px-3 mt-1">
                                     <i class="bi bi-download me-1"></i> Download
                                 </a>
-                            @else
-                                <span class="text-muted small"><i class="bi bi-lock-fill"></i> Terkunci</span>
                             @endif
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center py-5">
-                            <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" alt="No Data" width="64" class="opacity-50 mb-3">
+                        <td colspan="6" class="text-center py-5">
+                            <i class="bi bi-inbox text-muted opacity-50 mb-3 d-block lh-1" style="font-size: 4rem;" aria-hidden="true"></i>
                             <h6 class="text-muted mb-2">Belum ada laporan.</h6>
                             <p class="text-muted small mb-3">Klik tombol di bawah untuk membuat laporan pertama Anda.</p>
                             <a href="{{ route('coach.reports.create') }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
